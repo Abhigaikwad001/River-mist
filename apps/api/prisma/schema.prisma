@@ -1,0 +1,262 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           Int            @id @default(autoincrement())
+  name         String
+  email        String         @unique
+  phone        String?
+  passwordHash String
+  role         Role           @default(USER)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  bookings     Booking[]
+  reviews      Review[]
+  quotes       WeddingQuote[]
+}
+
+model Package {
+  id             Int       @id @default(autoincrement())
+  name           String
+  slug           String    @unique
+  description    String
+  experienceType EventType
+  image          String?
+  priceAdult     Int       @default(0)
+  priceChild     Int       @default(0)
+  minGuests      Int       @default(1)
+  maxGuests      Int?
+  active         Boolean   @default(true)
+  displayOrder   Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  bookings       Booking[]
+}
+
+model Activity {
+  id                Int               @id @default(autoincrement())
+  name              String
+  description       String
+  image             String?
+  price             Int               @default(0)
+  pricingType       String            @default("PER_PERSON")
+  capacity          Int?
+  active            Boolean           @default(true)
+  bookingActivities BookingActivity[]
+}
+
+model MenuItem {
+  id          Int     @id @default(autoincrement())
+  name        String
+  description String?
+  image       String?
+  meal        String
+  isVeg       Boolean @default(true)
+  active      Boolean @default(true)
+}
+
+model Resource {
+  id               Int               @id @default(autoincrement())
+  name             String
+  type             String
+  capacity         Int
+  description      String?
+  active           Boolean           @default(true)
+  bookingResources BookingResource[]
+}
+
+model Booking {
+  id              Int               @id @default(autoincrement())
+  bookingNumber   String            @unique
+  date            DateTime
+  type            EventType
+  status          BookingStatus     @default(REQUESTED)
+  userId          Int
+  packageId       Int
+  headCountAdult  Int               @default(1)
+  headCountChild  Int               @default(0)
+  totalAmount     Int               @default(0)
+  advanceRequired Int               @default(0)
+  amountPaid      Int               @default(0)
+  balanceAmount   Int               @default(0)
+  notes           String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  package         Package           @relation(fields: [packageId], references: [id])
+  user            User              @relation(fields: [userId], references: [id])
+  activities      BookingActivity[]
+  resources       BookingResource[]
+  payments        Payment[]
+  weddingQuote    WeddingQuote?
+}
+
+model BookingActivity {
+  bookingId  Int
+  activityId Int
+  quantity   Int      @default(1)
+  activity   Activity @relation(fields: [activityId], references: [id])
+  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@id([bookingId, activityId])
+}
+
+model BookingResource {
+  bookingId  Int
+  resourceId Int
+  quantity   Int      @default(1)
+  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  resource   Resource @relation(fields: [resourceId], references: [id])
+
+  @@id([bookingId, resourceId])
+}
+
+model Payment {
+  id                Int           @id @default(autoincrement())
+  bookingId         Int
+  amount            Int
+  currency          String        @default("INR")
+  method            String
+  status            PaymentStatus @default(INITIATED)
+  razorpayOrderId   String?       @unique
+  razorpayPaymentId String?       @unique
+  paymentDate       DateTime      @default(now())
+  booking           Booking       @relation(fields: [bookingId], references: [id])
+}
+
+model WeddingQuote {
+  id                      Int         @id @default(autoincrement())
+  quoteNumber             String      @unique
+  userId                  Int
+  eventDate               DateTime
+  guestCount              Int
+  subtotal                Int
+  total                   Int
+  advanceRequired         Int
+  status                  QuoteStatus @default(DRAFT)
+  notes                   String?
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
+  bookingId               Int?        @unique
+  decorationRequirements  String?
+  djMusicRequirements     String?
+  eventType               EventType   @default(WEDDING)
+  foodRequirements        String?
+  photographyRequirements String?
+  specialRequirements     String?
+  venueRequirements       String?
+  items                   QuoteItem[]
+  booking                 Booking?    @relation(fields: [bookingId], references: [id])
+  user                    User        @relation(fields: [userId], references: [id])
+}
+
+model QuoteItem {
+  id          Int          @id @default(autoincrement())
+  quoteId     Int
+  category    String
+  description String
+  amount      Int
+  quote       WeddingQuote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  action    String
+  entity    String
+  entityId  Int
+  userId    Int?
+  oldValue  String?
+  newValue  String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+}
+
+model Media {
+  id        Int      @id @default(autoincrement())
+  type      String
+  url       String
+  altText   String?
+  category  String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model Review {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  rating     Int
+  comment    String
+  isApproved Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+}
+
+model Discount {
+  id         Int       @id @default(autoincrement())
+  code       String    @unique
+  type       String
+  value      Int
+  active     Boolean   @default(true)
+  usageLimit Int?
+  usageCount Int       @default(0)
+  validFrom  DateTime?
+  validUntil DateTime?
+}
+
+enum Role {
+  USER
+  SUPER_ADMIN
+  BOOKING_MANAGER
+  EVENT_MANAGER
+  FINANCE_MANAGER
+  CONTENT_MANAGER
+}
+
+enum BookingStatus {
+  DRAFT
+  REQUESTED
+  UNDER_REVIEW
+  APPROVED
+  PAYMENT_PENDING
+  CONFIRMED
+  REJECTED
+  CANCELLED
+  COMPLETED
+  REFUND_PENDING
+  REFUNDED
+}
+
+enum PaymentStatus {
+  INITIATED
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  APPROVED
+  REJECTED
+  CONVERTED
+}
+
+enum EventType {
+  DAY_TOURISM
+  HURDA_PARTY
+  BIRTHDAY
+  WEDDING
+  DESTINATION_WEDDING
+  ENGAGEMENT
+  ANNIVERSARY
+  CORPORATE_EVENT
+  SCHOOL_COLLEGE_PICNIC
+  FAMILY_DAY_OUT
+  OTHER_EVENT
+}
