@@ -71,28 +71,29 @@ model Resource {
 }
 
 model Booking {
-  id              Int               @id @default(autoincrement())
-  bookingNumber   String            @unique
-  date            DateTime
-  type            EventType
-  status          BookingStatus     @default(REQUESTED)
-  userId          Int
-  packageId       Int
-  headCountAdult  Int               @default(1)
-  headCountChild  Int               @default(0)
-  totalAmount     Int               @default(0)
-  advanceRequired Int               @default(0)
-  amountPaid      Int               @default(0)
-  balanceAmount   Int               @default(0)
-  notes           String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  package         Package           @relation(fields: [packageId], references: [id])
-  user            User              @relation(fields: [userId], references: [id])
-  activities      BookingActivity[]
-  resources       BookingResource[]
-  payments        Payment[]
-  weddingQuote    WeddingQuote?
+  id               Int               @id @default(autoincrement())
+  bookingNumber    String            @unique
+  date             DateTime
+  type             EventType
+  status           BookingStatus     @default(REQUESTED)
+  userId           Int
+  packageId        Int
+  headCountAdult   Int               @default(1)
+  headCountChild   Int               @default(0)
+  totalAmount      Int               @default(0)
+  advanceRequired  Int               @default(0)
+  amountPaid       Int               @default(0)
+  balanceAmount    Int               @default(0)
+  notes            String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  package          Package           @relation(fields: [packageId], references: [id])
+  user             User              @relation(fields: [userId], references: [id])
+  activities       BookingActivity[]
+  resources        BookingResource[]
+  payments         Payment[]
+  weddingQuote     WeddingQuote?
+  notificationLogs NotificationLog[]
 }
 
 model BookingActivity {
@@ -129,29 +130,30 @@ model Payment {
 }
 
 model WeddingQuote {
-  id                      Int         @id @default(autoincrement())
-  quoteNumber             String      @unique
+  id                      Int               @id @default(autoincrement())
+  quoteNumber             String            @unique
   userId                  Int
   eventDate               DateTime
   guestCount              Int
   subtotal                Int
   total                   Int
   advanceRequired         Int
-  status                  QuoteStatus @default(DRAFT)
+  status                  QuoteStatus       @default(DRAFT)
   notes                   String?
-  createdAt               DateTime    @default(now())
-  updatedAt               DateTime    @updatedAt
-  bookingId               Int?        @unique
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  bookingId               Int?              @unique
   decorationRequirements  String?
   djMusicRequirements     String?
-  eventType               EventType   @default(WEDDING)
+  eventType               EventType         @default(WEDDING)
   foodRequirements        String?
   photographyRequirements String?
   specialRequirements     String?
   venueRequirements       String?
   items                   QuoteItem[]
-  booking                 Booking?    @relation(fields: [bookingId], references: [id])
-  user                    User        @relation(fields: [userId], references: [id])
+  booking                 Booking?          @relation(fields: [bookingId], references: [id])
+  user                    User              @relation(fields: [userId], references: [id])
+  notificationLogs        NotificationLog[]
 }
 
 model QuoteItem {
@@ -259,4 +261,22 @@ enum EventType {
   SCHOOL_COLLEGE_PICNIC
   FAMILY_DAY_OUT
   OTHER_EVENT
+}
+
+model NotificationLog {
+  id           Int      @id @default(autoincrement())
+  type         String
+  recipient    String
+  subject      String?
+  content      String
+  status       String   @default("PENDING")
+  errorMessage String?
+  retryCount   Int      @default(0)
+  bookingId    Int?
+  quoteId      Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  booking Booking?      @relation(fields: [bookingId], references: [id])
+  quote   WeddingQuote? @relation(fields: [quoteId], references: [id])
 }
