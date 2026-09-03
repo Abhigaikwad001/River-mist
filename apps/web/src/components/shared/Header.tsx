@@ -128,14 +128,14 @@ export function Header() {
             </div>
           </div>
 
-          <Link onClick={() => setIsMobileMenuOpen(false)} href="/weddings" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold">Weddings</Link>
-          <Link onClick={() => setIsMobileMenuOpen(false)} href="/events" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold">Events</Link>
-          <Link onClick={() => setIsMobileMenuOpen(false)} href="/food" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold">Food</Link>
-          <Link onClick={() => setIsMobileMenuOpen(false)} href="/gallery" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold">Gallery</Link>
+          <Link onClick={() => setIsMobileMenuOpen(false)} href="/weddings" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold">{mounted ? t('nav.weddings') || 'Weddings' : 'Weddings'}</Link>
+          <Link onClick={() => setIsMobileMenuOpen(false)} href="/events" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold">{mounted ? t('nav.events') || 'Events' : 'Events'}</Link>
+          <Link onClick={() => setIsMobileMenuOpen(false)} href="/food" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold">{mounted ? t('nav.food') || 'Food' : 'Food'}</Link>
+          <Link onClick={() => setIsMobileMenuOpen(false)} href="/gallery" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold">{mounted ? t('nav.gallery') || 'Gallery' : 'Gallery'}</Link>
           <Link onClick={() => setIsMobileMenuOpen(false)} href="/about" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold">About</Link>
           <Link onClick={() => setIsMobileMenuOpen(false)} href="/contact" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold">Contact</Link>
           
-          <Link onClick={() => setIsMobileMenuOpen(false)} href="/booking" className="mt-4 mx-4 bg-[#D4AF37] text-[#1E3F20] text-center py-4 uppercase tracking-widest text-xs font-bold shadow-lg rounded">Book Now</Link>
+          <Link onClick={() => setIsMobileMenuOpen(false)} href="/booking" className="mt-4 mx-4 bg-[#D4AF37] text-[#1E3F20] text-center py-4 uppercase tracking-widest text-xs font-bold shadow-lg rounded">{mounted ? t('nav.book') || 'Book Now' : 'Book Now'}</Link>
         </div>
       )}
     </header>
