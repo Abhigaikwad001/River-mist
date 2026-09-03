@@ -25,6 +25,7 @@ describe('BookingsService', () => {
               findMany: jest.fn(),
               findUnique: jest.fn(),
               update: jest.fn(),
+              count: jest.fn().mockResolvedValue(0),
             },
             user: {
               findUnique: jest.fn(),

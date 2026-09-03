@@ -27,6 +27,9 @@ describe('Pricing Engine (Phase 4)', () => {
       user: {
         findUnique: jest.fn().mockResolvedValue({ id: 99 }),
       },
+      booking: {
+        count: jest.fn().mockResolvedValue(0),
+      },
       package: {
         findUnique: jest.fn(),
       },

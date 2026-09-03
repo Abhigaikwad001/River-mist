@@ -97,6 +97,12 @@ export class BookingsService {
       }
     }
 
+    // Generate Booking Number OUTSIDE the transaction to reduce transaction duration
+    // PostgreSQL count() can be slow and doesn't require transaction isolation here
+    // since bookingNumber has a @unique constraint which protects against concurrent duplicates.
+    const bookingCount = await this.prisma.booking.count();
+    const bookingNumber = `RM-${new Date().getFullYear()}-${String(bookingCount + 1).padStart(6, '0')}`;
+
     // Execute in transaction for atomic capacity locking and pricing rules
     const booking = await this.prisma.$transaction(async (tx) => {
       // 1. Check & Lock Capacity
@@ -149,9 +155,7 @@ export class BookingsService {
         ? Math.floor(totalAmount * 0.25) 
         : totalAmount; // 25% for wedding, 100% for day
 
-      // Generate Booking Number
-      const bookingCount = await tx.booking.count();
-      const bookingNumber = `RM-${new Date().getFullYear()}-${String(bookingCount + 1).padStart(6, '0')}`;
+      // Booking Number is generated outside the transaction to save time
 
       let resourceConnections = resourceRequirements.map(req => ({
         resource: { connect: { id: req.resourceId } },
@@ -188,6 +192,9 @@ export class BookingsService {
       });
 
       return created;
+    }, { 
+      maxWait: 5000, 
+      timeout: 15000 
     });
 
     // Fire & forget notification
