@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
+import { useSiteContent } from '@/hooks/useSiteContent';
 
 const Experience3D = dynamic(() => import('./Experience3D').then((mod) => mod.Experience3D), { 
   ssr: false,
@@ -13,6 +14,16 @@ export function Hero() {
   const containerRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLAnchorElement>(null);
+
+  const { getText, getTitle, getBlock } = useSiteContent('HERO');
+
+  const heroSubtitle = getTitle('home.hero.subtitle', 'Welcome to');
+  const heroTitleBlock = getBlock('home.hero.title');
+  const heroTitle = heroTitleBlock?.title || 'River Mist Resort';
+  const heroDescription = getText(
+    'home.hero.description',
+    'Where untouched nature meets unmatched luxury. Experience the perfect getaway for day visits, hurda parties, and weddings.'
+  );
 
   useEffect(() => {
     // Respect prefers-reduced-motion
@@ -58,7 +69,7 @@ export function Hero() {
       {/* Rich Background Image */}
       <div className="absolute inset-0 z-0">
         <Image
-          src="https://images.unsplash.com/photo-1540541338287-41700207dee6?auto=format&fit=crop&q=80&w=2000" 
+          src={heroTitleBlock?.image || "https://images.unsplash.com/photo-1540541338287-41700207dee6?auto=format&fit=crop&q=80&w=2000"} 
           alt="Luxury Resort Background" 
           fill
           priority
@@ -75,13 +86,13 @@ export function Hero() {
       
       <div className="container mx-auto px-4 relative z-20 text-center" ref={textRef}>
         <h2 className="text-sm md:text-base tracking-[0.3em] uppercase text-[#D4AF37] mb-6 font-semibold drop-shadow-md">
-          Welcome to
+          {heroSubtitle}
         </h2>
         <h1 className="text-6xl md:text-8xl font-serif font-bold text-white mb-6 leading-tight drop-shadow-lg">
-          River Mist <br /> <span className="text-[#D4AF37] italic">Resort</span>
+          {heroTitle}
         </h1>
         <p className="max-w-2xl mx-auto text-lg md:text-xl text-gray-100 mb-10 leading-relaxed font-light drop-shadow">
-          Where untouched nature meets unmatched luxury. Experience the perfect getaway for day visits, hurda parties, and weddings.
+          {heroDescription}
         </p>
         
         <a 
@@ -95,3 +106,4 @@ export function Hero() {
     </section>
   );
 }
+

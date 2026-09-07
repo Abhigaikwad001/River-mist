@@ -1,7 +1,25 @@
+'use client';
+
 import React from 'react';
-import { Shield, FileText, CreditCard, Clock } from 'lucide-react';
+import { Shield, CreditCard, Clock } from 'lucide-react';
+import { useSiteContent } from '@/hooks/useSiteContent';
 
 export default function PoliciesPage() {
+  const { getText } = useSiteContent('POLICIES');
+
+  const checkinText = getText(
+    'policies.checkin',
+    'Standard check-in time is 12:00 PM. Standard check-out time is 10:00 AM. Early check-in and late check-out are subject to availability. Government-issued ID is mandatory for all guests upon arrival.'
+  );
+  const cancellationText = getText(
+    'policies.cancellation',
+    'A 100% advance is required for day outings to secure your booking. Weddings and large events require a 25% non-refundable advance. Cancellations made 7 days prior receive a 50% refund.'
+  );
+  const guidelinesText = getText(
+    'policies.guidelines',
+    'Outside food and beverages (especially alcohol) are strictly prohibited on the premises. River Mist is a family-friendly environment. Swimming pool usage requires proper swimwear.'
+  );
+
   return (
     <div className="min-h-screen bg-[#FAF9F6] pt-24 pb-32">
       <section className="px-6 md:px-20 mb-20 text-center">
@@ -22,12 +40,7 @@ export default function PoliciesPage() {
             </div>
             <div>
               <h2 className="text-2xl font-serif text-[#1E3F20] mb-4">Check-in & Check-out</h2>
-              <ul className="list-disc list-inside text-gray-600 space-y-2 leading-relaxed">
-                <li>Standard check-in time is <strong>12:00 PM</strong>.</li>
-                <li>Standard check-out time is <strong>10:00 AM</strong>.</li>
-                <li>Early check-in and late check-out are subject to availability and may incur additional charges.</li>
-                <li>Government-issued ID is mandatory for all guests upon arrival.</li>
-              </ul>
+              <p className="text-gray-600 leading-relaxed whitespace-pre-line">{checkinText}</p>
             </div>
           </div>
 
@@ -39,12 +52,7 @@ export default function PoliciesPage() {
             </div>
             <div>
               <h2 className="text-2xl font-serif text-[#1E3F20] mb-4">Payment & Cancellation</h2>
-              <ul className="list-disc list-inside text-gray-600 space-y-2 leading-relaxed">
-                <li>A 100% advance is required for day outings to secure your booking.</li>
-                <li>Weddings and large events require a 25% non-refundable advance.</li>
-                <li>Cancellations made 7 days prior to the event will receive a 50% refund (excluding non-refundable advances).</li>
-                <li>No-shows will be charged the full amount.</li>
-              </ul>
+              <p className="text-gray-600 leading-relaxed whitespace-pre-line">{cancellationText}</p>
             </div>
           </div>
 
@@ -56,12 +64,7 @@ export default function PoliciesPage() {
             </div>
             <div>
               <h2 className="text-2xl font-serif text-[#1E3F20] mb-4">Property Guidelines</h2>
-              <ul className="list-disc list-inside text-gray-600 space-y-2 leading-relaxed">
-                <li>Outside food and beverages (especially alcohol) are strictly prohibited on the premises.</li>
-                <li>River Mist is a family-friendly environment. Decorous behavior is expected in all common areas.</li>
-                <li>Swimming pool usage is allowed only with proper swimwear. There is no lifeguard on duty.</li>
-                <li>Damage to property or natural surroundings will result in penalty charges.</li>
-              </ul>
+              <p className="text-gray-600 leading-relaxed whitespace-pre-line">{guidelinesText}</p>
             </div>
           </div>
 
@@ -70,3 +73,4 @@ export default function PoliciesPage() {
     </div>
   );
 }
+

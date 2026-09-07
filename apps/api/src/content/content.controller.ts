@@ -4,14 +4,19 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '@prisma/client';
+import { CreateSiteContentDto } from './dto/create-site-content.dto';
 
 @Controller('content')
 export class ContentController {
   constructor(private readonly contentService: ContentService) {}
 
   @Get()
-  getContent(@Query('category') category?: string) {
-    return this.contentService.getContent(category);
+  getContent(
+    @Query('category') category?: string,
+    @Query('all') all?: string,
+  ) {
+    const activeOnly = all !== 'true';
+    return this.contentService.getContent(category, activeOnly);
   }
 
   @Get(':key')
@@ -22,8 +27,8 @@ export class ContentController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.CONTENT_MANAGER)
   @Post()
-  upsertContent(@Body() data: any) {
-    return this.contentService.upsertContent(data);
+  upsertContent(@Body() dto: CreateSiteContentDto) {
+    return this.contentService.upsertContent(dto);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

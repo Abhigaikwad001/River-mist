@@ -1,15 +1,38 @@
+'use client';
+
 import React from 'react';
 import { Star, Leaf, Heart } from 'lucide-react';
 import Link from 'next/link';
+import { useSiteContent } from '@/hooks/useSiteContent';
 
 export default function AboutPage() {
+  const { getText, getTitle } = useSiteContent('ABOUT');
+
+  const heroTitle = getTitle('about.hero.title', 'About River Mist');
+  const heroDescription = getText(
+    'about.hero.description',
+    'River Mist is a premium agro-tourism resort dedicated to offering a sanctuary of luxury within the heart of nature. Since our founding, we have been passionate about curating authentic experiences that blend rustic charm with world-class hospitality.'
+  );
+  const visionText = getText(
+    'about.vision',
+    'To be the leading destination for eco-luxury, where every guest experiences the profound beauty of nature without compromising on modern comforts.'
+  );
+  const missionText = getText(
+    'about.mission',
+    'To deliver unforgettable memories through personalized service, sustainable practices, and deeply rooted cultural experiences that celebrate the rich heritage of Maharashtra.'
+  );
+  const sustainabilityText = getText(
+    'about.sustainability',
+    'We believe that true luxury is sustainable. From sourcing our ingredients from local farmers for our authentic Maharashtrian thalis, to maintaining the natural flora and fauna across our grand lawn, we are committed to leaving a positive footprint on our environment.'
+  );
+
   return (
     <div className="min-h-screen bg-[#FAF9F6] pt-24">
       {/* Hero Section */}
       <section className="px-6 md:px-20 mb-20 text-center max-w-4xl mx-auto">
-        <h1 className="text-4xl md:text-6xl font-serif text-[#1E3F20] mb-6">About River Mist</h1>
+        <h1 className="text-4xl md:text-6xl font-serif text-[#1E3F20] mb-6">{heroTitle}</h1>
         <p className="text-gray-600 leading-relaxed text-lg">
-          River Mist is a premium agro-tourism resort dedicated to offering a sanctuary of luxury within the heart of nature. Since our founding, we have been passionate about curating authentic experiences that blend rustic charm with world-class hospitality.
+          {heroDescription}
         </p>
       </section>
 
@@ -21,7 +44,7 @@ export default function AboutPage() {
             <Star className="w-10 h-10 text-[#D4AF37] mb-6 relative z-10" />
             <h2 className="text-3xl font-serif text-[#1E3F20] mb-4 relative z-10">Our Vision</h2>
             <p className="text-gray-600 leading-relaxed relative z-10">
-              To be the leading destination for eco-luxury, where every guest experiences the profound beauty of nature without compromising on modern comforts.
+              {visionText}
             </p>
           </div>
           
@@ -30,7 +53,7 @@ export default function AboutPage() {
             <Heart className="w-10 h-10 text-[#D4AF37] mb-6 relative z-10" />
             <h2 className="text-3xl font-serif text-white mb-4 relative z-10">Our Mission</h2>
             <p className="text-gray-300 leading-relaxed relative z-10">
-              To deliver unforgettable memories through personalized service, sustainable practices, and deeply rooted cultural experiences that celebrate the rich heritage of Maharashtra.
+              {missionText}
             </p>
           </div>
         </div>
@@ -41,7 +64,7 @@ export default function AboutPage() {
         <Leaf className="w-12 h-12 text-[#2A522C] mx-auto mb-6" />
         <h2 className="text-3xl md:text-5xl font-serif text-[#1E3F20] mb-8">Rooted in Sustainability</h2>
         <p className="text-gray-600 max-w-3xl mx-auto leading-relaxed text-lg">
-          We believe that true luxury is sustainable. From sourcing our ingredients from local farmers for our authentic Maharashtrian thalis, to maintaining the natural flora and fauna across our grand lawn, we are committed to leaving a positive footprint on our environment.
+          {sustainabilityText}
         </p>
       </section>
 
@@ -56,3 +79,4 @@ export default function AboutPage() {
     </div>
   );
 }
+

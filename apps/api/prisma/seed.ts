@@ -194,7 +194,42 @@ async function main() {
 
   console.log('Food & Thalis Catalog seeded.');
 
-  // 6. Development Seeding
+  // 6. Create Default SiteContent Entries
+  const siteContents = [
+    { key: 'home.hero.title', title: 'River Mist Resort', category: 'HERO', content: 'Resort' },
+    { key: 'home.hero.subtitle', title: 'Welcome to', category: 'HERO', content: 'Welcome to River Mist' },
+    { key: 'home.hero.description', title: 'Home Hero Description', category: 'HERO', content: 'Where untouched nature meets unmatched luxury. Experience the perfect getaway for day visits, hurda parties, and weddings.' },
+    { key: 'home.cta.title', title: 'Ready to Escape?', category: 'GENERAL', content: 'Ready to Escape?' },
+    { key: 'home.cta.description', title: 'Home CTA Description', category: 'GENERAL', content: 'Book your day visit, event, or stay with us and experience the perfect blend of nature and luxury.' },
+    { key: 'about.hero.title', title: 'About River Mist', category: 'ABOUT', content: 'About River Mist' },
+    { key: 'about.hero.description', title: 'About Hero Description', category: 'ABOUT', content: 'River Mist is a premium agro-tourism resort dedicated to offering a sanctuary of luxury within the heart of nature.' },
+    { key: 'about.vision', title: 'Our Vision', category: 'ABOUT', content: 'To be the leading destination for eco-luxury, where every guest experiences the profound beauty of nature.' },
+    { key: 'about.mission', title: 'Our Mission', category: 'ABOUT', content: 'To deliver unforgettable memories through personalized service, sustainable practices, and cultural experiences.' },
+    { key: 'about.sustainability', title: 'Rooted in Sustainability', category: 'ABOUT', content: 'We believe that true luxury is sustainable. Sourcing local ingredients for authentic thalis.' },
+    { key: 'contact.phone', title: 'Phone Number', category: 'CONTACT', content: '+91 9322759343, +91 9876543210' },
+    { key: 'contact.email', title: 'Email Address', category: 'CONTACT', content: 'info@rivermist.in, bookings@rivermist.in' },
+    { key: 'contact.address', title: 'Our Location', category: 'CONTACT', content: 'River Road, Agro Valley, Maharashtra, India' },
+    { key: 'contact.hours', title: 'Working Hours', category: 'CONTACT', content: 'Mon - Sun: 9:00 AM to 6:00 PM' },
+    { key: 'policies.checkin', title: 'Check-in & Check-out', category: 'POLICIES', content: 'Standard check-in time is 12:00 PM. Standard check-out time is 10:00 AM. Government-issued ID is mandatory.' },
+    { key: 'policies.cancellation', title: 'Payment & Cancellation', category: 'POLICIES', content: 'A 100% advance is required for day outings. Weddings require a 25% non-refundable advance.' },
+    { key: 'policies.guidelines', title: 'Property Guidelines', category: 'POLICIES', content: 'Outside food and alcohol are strictly prohibited on the premises.' },
+    { key: 'weddings.hero.title', title: "Celebrate Love In Nature's Embrace", category: 'WEDDINGS', content: "Celebrate Love In Nature's Embrace" },
+    { key: 'weddings.hero.subtitle', title: 'River Mist Weddings', category: 'WEDDINGS', content: 'River Mist Weddings' },
+    { key: 'weddings.hero.description', title: 'Weddings Hero Description', category: 'WEDDINGS', content: 'From dreamy ceremonies to joyful celebrations, we create unforgettable wedding experiences.' }
+  ];
+
+  for (const sc of siteContents) {
+    await prisma.siteContent.upsert({
+      where: { key: sc.key },
+      update: { title: sc.title, content: sc.content, category: sc.category },
+      create: { key: sc.key, title: sc.title, content: sc.content, category: sc.category, active: true }
+    });
+  }
+
+  console.log('SiteContent entries seeded.');
+
+  // 7. Development Seeding
+
   if (process.env.NODE_ENV === 'development') {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);

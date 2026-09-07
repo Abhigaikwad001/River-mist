@@ -1,8 +1,18 @@
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
 import { Mail, Phone, MapPin, Clock } from 'lucide-react';
+import { useSiteContent } from '@/hooks/useSiteContent';
 
 export default function ContactPage() {
+  const { getText } = useSiteContent('CONTACT');
+
+  const phoneText = getText('contact.phone', '+91 9322759343 / +91 9876543210');
+  const emailText = getText('contact.email', 'info@rivermist.in / bookings@rivermist.in');
+  const addressText = getText('contact.address', 'River Road, Agro Valley, Maharashtra, India');
+  const hoursText = getText('contact.hours', 'Mon - Sun: 9:00 AM to 6:00 PM');
+
   return (
     <div className="min-h-screen bg-[#FAF9F6] pt-24">
       <section className="px-6 md:px-20 mb-20 text-center">
@@ -22,7 +32,7 @@ export default function ContactPage() {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-[#1E3F20] mb-1">Our Location</h3>
-                <p className="text-gray-600">River Road, Agro Valley<br />Maharashtra, India</p>
+                <p className="text-gray-600 whitespace-pre-line">{addressText}</p>
               </div>
             </div>
             
@@ -32,7 +42,7 @@ export default function ContactPage() {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-[#1E3F20] mb-1">Phone Number</h3>
-                <p className="text-gray-600">+91 9322759343<br />+91 9876543210</p>
+                <p className="text-gray-600 whitespace-pre-line">{phoneText}</p>
               </div>
             </div>
 
@@ -42,7 +52,7 @@ export default function ContactPage() {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-[#1E3F20] mb-1">Email Address</h3>
-                <p className="text-gray-600">info@rivermist.in<br />bookings@rivermist.in</p>
+                <p className="text-gray-600 whitespace-pre-line">{emailText}</p>
               </div>
             </div>
 
@@ -52,7 +62,7 @@ export default function ContactPage() {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-[#1E3F20] mb-1">Working Hours</h3>
-                <p className="text-gray-600">Mon - Sun: 9:00 AM to 6:00 PM</p>
+                <p className="text-gray-600 whitespace-pre-line">{hoursText}</p>
               </div>
             </div>
           </div>
@@ -60,7 +70,7 @@ export default function ContactPage() {
           {/* Contact Form */}
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
             <h2 className="text-2xl font-serif text-[#1E3F20] mb-6">Send a Message</h2>
-            <form className="space-y-4">
+            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
               <div>
                 <label className="text-sm font-medium text-gray-700">Full Name</label>
                 <input type="text" className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#D4AF37] outline-none" placeholder="John Doe" />
@@ -73,7 +83,7 @@ export default function ContactPage() {
                 <label className="text-sm font-medium text-gray-700">Message</label>
                 <textarea rows={4} className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#D4AF37] outline-none" placeholder="How can we help?"></textarea>
               </div>
-              <button type="button" className="w-full py-4 bg-[#1E3F20] text-white rounded-xl font-medium tracking-wide hover:bg-[#D4AF37] transition-colors">
+              <button type="submit" className="w-full py-4 bg-[#1E3F20] text-white rounded-xl font-medium tracking-wide hover:bg-[#D4AF37] transition-colors">
                 Submit
               </button>
             </form>
@@ -83,3 +93,4 @@ export default function ContactPage() {
     </div>
   );
 }
+

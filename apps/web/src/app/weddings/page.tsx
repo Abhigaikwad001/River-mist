@@ -6,8 +6,10 @@ import Link from 'next/link';
 import { motion, Variants } from 'framer-motion';
 import { ArrowRight, MapPin, Sparkles, Utensils, Heart, ClipboardList, Loader2, Users, CheckCircle } from 'lucide-react';
 import api from '@/lib/api';
+import { useSiteContent } from '@/hooks/useSiteContent';
 
 export default function WeddingsLandingPage() {
+  const { getTitle, getText } = useSiteContent('WEDDINGS');
   const [packages, setPackages] = useState<any[]>([]);
   const [venues, setVenues] = useState<any[]>([]);
   const [media, setMedia] = useState<any[]>([]);
@@ -69,13 +71,13 @@ export default function WeddingsLandingPage() {
           className="relative z-10 text-center px-4 max-w-4xl mx-auto mt-16"
         >
           <span className="text-[#D4AF37] font-medium tracking-[0.2em] uppercase text-sm mb-6 block drop-shadow-md">
-            River Mist Weddings
+            {getTitle('weddings.hero.subtitle', 'River Mist Weddings')}
           </span>
-          <h1 className="text-5xl md:text-7xl font-serif text-white mb-6 leading-tight drop-shadow-lg">
-            Celebrate Love<br/>In Nature's Embrace
+          <h1 className="text-5xl md:text-7xl font-serif text-white mb-6 leading-tight drop-shadow-lg whitespace-pre-line">
+            {getTitle('weddings.hero.title', "Celebrate Love\nIn Nature's Embrace")}
           </h1>
           <p className="text-lg md:text-xl text-white/90 max-w-2xl mx-auto mb-10 font-light leading-relaxed drop-shadow-md">
-            From dreamy ceremonies to joyful celebrations, we create unforgettable wedding experiences surrounded by the beauty of nature.
+            {getText('weddings.hero.description', 'From dreamy ceremonies to joyful celebrations, we create unforgettable wedding experiences surrounded by the beauty of nature.')}
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link 
@@ -169,9 +171,11 @@ export default function WeddingsLandingPage() {
         <div className="max-w-6xl mx-auto flex flex-col lg:flex-row items-center gap-16">
           <div className="lg:w-1/2">
             <h2 className="text-sm font-bold tracking-widest uppercase text-[#D4AF37] mb-3">The Experience</h2>
-            <h3 className="text-4xl md:text-5xl font-serif text-[#1E3F20] mb-6 leading-tight">Your Dream Wedding,<br/>Our Passion</h3>
+            <h3 className="text-4xl md:text-5xl font-serif text-[#1E3F20] mb-6 leading-tight whitespace-pre-line">
+              {getTitle('weddings.experience.title', 'Your Dream Wedding,\nOur Passion')}
+            </h3>
             <p className="text-gray-600 text-lg mb-8 leading-relaxed">
-              We believe that every love story is unique, and your celebration should be too. From the grandest gestures to the smallest details, our dedicated team ensures your special day is flawless.
+              {getText('weddings.experience.description', 'We believe that every love story is unique, and your celebration should be too. From the grandest gestures to the smallest details, our dedicated team ensures your special day is flawless.')}
             </p>
             <ul className="space-y-4 mb-10">
               {[
