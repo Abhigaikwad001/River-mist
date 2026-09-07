@@ -134,7 +134,7 @@ export class PaymentsService {
         include: { user: true }
       });
       const newAmountPaid = booking.amountPaid + payment.amount;
-      const newBalance = booking.totalAmount - newAmountPaid;
+      const newBalance = Math.max(0, booking.totalAmount - newAmountPaid);
 
       await tx.booking.update({
         where: { id: payment.bookingId },
@@ -187,7 +187,6 @@ export class PaymentsService {
         await this.fulfillPayment(razorpayOrderId, razorpayPaymentId);
       } catch (err: any) {
         this.logger.error(`Webhook processing failed for order ${razorpayOrderId}: ${err.message}`);
-        // But still return 200 OK so Razorpay doesn't retry unnecessarily if it's already captured
       }
     } else if (body.event === 'payment.failed') {
       const paymentEntity = body.payload.payment.entity;
@@ -219,7 +218,17 @@ export class PaymentsService {
   /**
    * Manual Payment Recording (Admin Only)
    */
-  async recordManualPayment(bookingId: number, amount: number, method: string) {
+  async recordManualPayment(
+    bookingId: number, 
+    amount: number, 
+    method: string, 
+    referenceId?: string, 
+    notes?: string
+  ) {
+    if (!amount || isNaN(amount) || amount <= 0) {
+      throw new BadRequestException('Payment amount must be a positive number');
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const booking = await tx.booking.findUnique({ 
         where: { id: bookingId },
@@ -231,17 +240,20 @@ export class PaymentsService {
         throw new BadRequestException('Cannot record payment for this booking status');
       }
 
-      await tx.payment.create({
+      const paymentMethod = method ? method.toUpperCase() : 'CASH';
+
+      const payment = await tx.payment.create({
         data: {
           bookingId: booking.id,
           amount: amount,
-          method: method,
+          method: paymentMethod,
           status: PaymentStatus.CAPTURED,
+          razorpayPaymentId: referenceId || null,
         }
       });
 
       const newAmountPaid = booking.amountPaid + amount;
-      const newBalance = booking.totalAmount - newAmountPaid;
+      const newBalance = Math.max(0, booking.totalAmount - newAmountPaid);
 
       // Automatically confirm if advance requirement is met
       let newStatus = booking.status;
@@ -254,7 +266,8 @@ export class PaymentsService {
         data: { 
           status: newStatus, 
           amountPaid: newAmountPaid,
-          balanceAmount: newBalance
+          balanceAmount: newBalance,
+          notes: notes ? (booking.notes ? `${booking.notes}\n${notes}` : notes) : booking.notes
         }
       });
 
@@ -268,7 +281,14 @@ export class PaymentsService {
         amount
       ).catch((err: unknown) => this.logger.error('Failed to send manual payment notification', err));
 
-      return { success: true, bookingId, status: newStatus };
+      return { 
+        success: true, 
+        bookingId, 
+        status: newStatus, 
+        amountPaid: newAmountPaid, 
+        balanceAmount: newBalance, 
+        payment 
+      };
     });
   }
 
@@ -277,11 +297,12 @@ export class PaymentsService {
    */
   async getAllPayments() {
     return this.prisma.payment.findMany({
-      orderBy: { createdAt: 'desc' },
+      orderBy: { paymentDate: 'desc' },
       include: {
         booking: {
           include: {
             user: true,
+            package: true,
           }
         }
       }
@@ -324,14 +345,13 @@ export class PaymentsService {
         });
 
         const newAmountPaid = payment.booking.amountPaid - refundAmount;
-        const newBalance = payment.booking.totalAmount - newAmountPaid;
+        const newBalance = Math.max(0, payment.booking.totalAmount - newAmountPaid);
 
         await tx.booking.update({
           where: { id: payment.booking.id },
           data: {
             amountPaid: Math.max(0, newAmountPaid),
             balanceAmount: newBalance,
-            // Depending on business rules, we might mark as REFUND_PENDING or REFUNDED
             status: newAmountPaid <= 0 ? BookingStatus.REFUNDED : BookingStatus.REFUND_PENDING
           }
         });

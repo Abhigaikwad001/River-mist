@@ -23,8 +23,11 @@ export const useI18n = create<I18nState>()(
       setLanguage: (lang) => set({ language: lang }),
       t: (key: string) => {
         const lang = get().language;
-        // @ts-ignore
-        return translations[lang][key] || key;
+        const dict = translations[lang] as Record<string, string>;
+        if (dict[key]) return dict[key];
+        const lowerKey = key.toLowerCase();
+        if (dict[lowerKey]) return dict[lowerKey];
+        return key;
       }
     }),
     {

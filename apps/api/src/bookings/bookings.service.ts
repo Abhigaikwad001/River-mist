@@ -120,25 +120,69 @@ export class BookingsService {
       }
 
       let discountAmount = 0;
-      if (data.discountCode) {
-        // Find discount and lock row
-        const discounts: any[] = await tx.$queryRaw`SELECT * FROM "Discount" WHERE code = ${data.discountCode} FOR UPDATE`;
+      let appliedDiscount: any = null;
+      if (data.discountCode && data.discountCode.trim() !== '') {
+        const normalizedCode = data.discountCode.trim().toUpperCase();
+        // Find discount and lock row for update
+        const discounts: any[] = await tx.$queryRaw`SELECT * FROM "Discount" WHERE UPPER(code) = ${normalizedCode} FOR UPDATE`;
         if (discounts.length === 0) throw new BadRequestException('Invalid discount code');
         const discount = discounts[0];
 
         if (!discount.active) throw new BadRequestException('Discount code is inactive');
         const now = new Date();
-        if (discount.validFrom && new Date(discount.validFrom) > now) throw new BadRequestException('Discount code not yet valid');
+        if (discount.validFrom && new Date(discount.validFrom) > now) throw new BadRequestException('Discount code not yet active');
         if (discount.validUntil && new Date(discount.validUntil) < now) throw new BadRequestException('Discount code expired');
-        if (discount.usageLimit !== null && discount.usageCount >= discount.usageLimit) throw new BadRequestException('Discount usage limit reached');
+        if (discount.usageLimit !== null && discount.usageLimit !== undefined && discount.usageCount >= discount.usageLimit) {
+          throw new BadRequestException('Discount usage limit reached');
+        }
 
-        if (discount.type === 'PERCENTAGE') {
+        // Per-customer usage limit check
+        if (discount.perCustomerLimit && discount.perCustomerLimit > 0) {
+          const userBookingCount = await tx.booking.count({
+            where: { userId, discountId: discount.id }
+          });
+          if (userBookingCount >= discount.perCustomerLimit) {
+            throw new BadRequestException(`Per-customer usage limit reached for offer '${discount.code}'`);
+          }
+        }
+
+        // Minimum booking subtotal requirement check
+        if (discount.minBookingAmount && discount.minBookingAmount > 0 && subtotal < discount.minBookingAmount) {
+          throw new BadRequestException(
+            `Minimum booking subtotal of ₹${discount.minBookingAmount.toLocaleString('en-IN')} required for offer '${discount.code}'`
+          );
+        }
+
+        // Applicable packages check
+        if (Array.isArray(discount.applicablePackages) && discount.applicablePackages.length > 0) {
+          const pkgMatch = discount.applicablePackages.some(
+            (p: string) => p === String(pkg.id) || p.toLowerCase() === pkg.slug.toLowerCase()
+          );
+          if (!pkgMatch) {
+            throw new BadRequestException(`Offer '${discount.code}' is not applicable to package '${pkg.name}'`);
+          }
+        }
+
+        // Applicable activities check
+        if (activityIds && activityIds.length > 0 && Array.isArray(discount.applicableActivities) && discount.applicableActivities.length > 0) {
+          const actMatch = activityIds.some((actId: number) => discount.applicableActivities.includes(String(actId)));
+          if (!actMatch) {
+            throw new BadRequestException(`Offer '${discount.code}' is not applicable to selected activities`);
+          }
+        }
+
+        const discTypeUpper = String(discount.type).toUpperCase();
+        if (discTypeUpper === 'PERCENTAGE') {
           discountAmount = Math.floor(subtotal * (discount.value / 100));
-        } else if (discount.type === 'FIXED') {
+          if (discount.maxDiscountAmount && discount.maxDiscountAmount > 0) {
+            discountAmount = Math.min(discountAmount, discount.maxDiscountAmount);
+          }
+        } else if (discTypeUpper === 'FIXED_AMOUNT' || discTypeUpper === 'FIXED') {
           discountAmount = discount.value;
         }
 
         discountAmount = Math.min(discountAmount, subtotal);
+        appliedDiscount = discount;
         
         await tx.discount.update({
           where: { id: discount.id },
@@ -146,7 +190,7 @@ export class BookingsService {
         });
       }
 
-      const postDiscountSubtotal = subtotal - discountAmount;
+      const postDiscountSubtotal = Math.max(0, subtotal - discountAmount);
       const taxRate = process.env.TAX_RATE ? parseFloat(process.env.TAX_RATE) : 0;
       const taxAmount = Math.floor(postDiscountSubtotal * taxRate);
       const totalAmount = postDiscountSubtotal + taxAmount;
@@ -154,8 +198,6 @@ export class BookingsService {
       const advanceRequired = (type === EventType.WEDDING || type === EventType.DESTINATION_WEDDING) 
         ? Math.floor(totalAmount * 0.25) 
         : totalAmount; // 25% for wedding, 100% for day
-
-      // Booking Number is generated outside the transaction to save time
 
       let resourceConnections = resourceRequirements.map(req => ({
         resource: { connect: { id: req.resourceId } },
@@ -173,6 +215,12 @@ export class BookingsService {
           packageId,
           headCountAdult,
           headCountChild,
+          subtotalAmount: subtotal,
+          discountCode: appliedDiscount ? appliedDiscount.code : null,
+          discountType: appliedDiscount ? appliedDiscount.type : null,
+          discountValue: appliedDiscount ? appliedDiscount.value : 0,
+          discountAmount,
+          discountId: appliedDiscount ? appliedDiscount.id : null,
           totalAmount,
           advanceRequired,
           balanceAmount: totalAmount,
@@ -186,6 +234,7 @@ export class BookingsService {
         },
         include: {
           package: true,
+          discount: true,
           activities: { include: { activity: true } },
           resources: { include: { resource: true } }
         }

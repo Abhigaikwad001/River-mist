@@ -5,7 +5,7 @@ import { Calendar, Users, Loader2 } from 'lucide-react';
 import api from '@/lib/api';
 
 export function StickySummary() {
-  const { date, type, headCountAdult, headCountChild, packageId, activityIds } = useBookingStore();
+  const { date, type, headCountAdult, headCountChild, packageId, activityIds, appliedDiscount } = useBookingStore();
   const [pkg, setPkg] = useState<any>(null);
   const [activities, setActivities] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -53,7 +53,9 @@ export function StickySummary() {
     }
   });
 
-  const totalAmount = packageTotal + activitiesTotal;
+  const subtotal = packageTotal + activitiesTotal;
+  const discountAmount = appliedDiscount ? appliedDiscount.discountAmount : 0;
+  const finalTotal = Math.max(0, subtotal - discountAmount);
 
   return (
     <div className="bg-[#FAF9F6] p-6 rounded-3xl border border-[#D4AF37]/30 shadow-md sticky top-24">
@@ -110,6 +112,20 @@ export function StickySummary() {
           </div>
         )}
 
+        {/* Breakdown with Subtotal & Discount if applied */}
+        {appliedDiscount && (
+          <div className="pt-3 border-t border-gray-200 space-y-2 text-xs">
+            <div className="flex justify-between text-gray-600">
+              <span>Subtotal</span>
+              <span className="font-medium">₹{subtotal.toLocaleString('en-IN')}</span>
+            </div>
+            <div className="flex justify-between text-emerald-700 font-semibold">
+              <span className="truncate pr-2">Offer: {appliedDiscount.offerName} ({appliedDiscount.code})</span>
+              <span className="whitespace-nowrap">-₹{discountAmount.toLocaleString('en-IN')}</span>
+            </div>
+          </div>
+        )}
+
         {/* Total */}
         <div className="pt-4 border-t border-[#D4AF37]/30 flex justify-between items-end mt-4">
           <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Total</span>
@@ -117,7 +133,12 @@ export function StickySummary() {
             {loading ? (
               <Loader2 className="w-5 h-5 animate-spin text-[#D4AF37]" />
             ) : (
-              <span className="text-2xl font-serif font-bold text-[#1E3F20]">₹{totalAmount}</span>
+              <div>
+                {appliedDiscount && (
+                  <p className="text-xs text-gray-400 line-through">₹{subtotal.toLocaleString('en-IN')}</p>
+                )}
+                <span className="text-2xl font-serif font-bold text-[#1E3F20]">₹{finalTotal.toLocaleString('en-IN')}</span>
+              </div>
             )}
           </div>
         </div>
@@ -125,3 +146,4 @@ export function StickySummary() {
     </div>
   );
 }
+

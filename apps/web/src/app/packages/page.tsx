@@ -76,14 +76,43 @@ export default function PackagesPage() {
               const isWedding = pkg.experienceType === 'WEDDING' || pkg.experienceType === 'DESTINATION_WEDDING';
               const linkHref = isWedding ? `/weddings/quote?packageId=${pkg.id}` : `/booking?type=${pkg.experienceType?.toLowerCase() || ''}`;
               const linkText = isWedding ? 'Plan Your Wedding' : `Book ${pkg.name}`;
+              
+              const inclusionsList = Array.isArray(pkg.inclusions) && pkg.inclusions.length > 0 
+                ? pkg.inclusions 
+                : ['Access to applicable resort areas', 'Dedicated support staff', 'All applicable taxes included'];
+
+              const formattedAdultPrice = typeof pkg.priceAdult === 'number' ? pkg.priceAdult.toLocaleString('en-IN') : pkg.priceAdult;
+              const formattedChildPrice = typeof pkg.priceChild === 'number' ? pkg.priceChild.toLocaleString('en-IN') : pkg.priceChild;
+
+              const packageImageUrl = pkg.media?.url || pkg.image;
 
               return (
                 <motion.div key={pkg.id} variants={fadeUp} className={`rounded-[40px] shadow-2xl p-10 flex flex-col relative overflow-hidden ${isHighlight ? 'bg-primary text-white border border-accent/30 shadow-primary/20' : 'bg-white text-gray-900'}`}>
                   <div className={`absolute top-0 right-0 w-32 h-32 rounded-bl-full -z-10 ${isHighlight ? 'bg-accent/20' : 'bg-primary/5'}`}></div>
                   
+                  {packageImageUrl && (
+                    <div className="h-44 -mx-10 -mt-10 mb-8 relative overflow-hidden bg-gray-100">
+                      <Image
+                        src={packageImageUrl}
+                        alt={pkg.media?.altText || pkg.name}
+                        fill
+                        sizes="(max-width: 768px) 100vw, 50vw"
+                        className="object-cover group-hover:scale-105 transition-transform duration-700 opacity-90"
+                      />
+                    </div>
+                  )}
+
                   <div className="flex justify-between items-start mb-8">
                     <div>
-                      {isHighlight && <div className="inline-block bg-accent text-primary text-xs font-bold px-3 py-1 mb-4 uppercase tracking-widest">Premium Selection</div>}
+                      {pkg.seasonalActive ? (
+                        <div className="inline-block bg-[#D4AF37] text-[#1E3F20] text-xs font-bold px-3 py-1 mb-4 uppercase tracking-widest rounded-full shadow-sm">
+                          Seasonal Package
+                        </div>
+                      ) : isHighlight ? (
+                        <div className="inline-block bg-accent text-primary text-xs font-bold px-3 py-1 mb-4 uppercase tracking-widest">
+                          Premium Selection
+                        </div>
+                      ) : null}
                       <h3 className={`text-3xl font-serif font-bold mb-2 ${isHighlight ? '' : 'text-gray-900'}`}>{pkg.name}</h3>
                       <p className={`font-light ${isHighlight ? 'text-primary-foreground opacity-80' : 'text-gray-500'}`}>{pkg.description || 'Experience the beauty of River Mist.'}</p>
                     </div>
@@ -93,21 +122,21 @@ export default function PackagesPage() {
                   </div>
                   
                   <div className="mb-8">
-                    <span className="text-5xl font-bold">₹{pkg.priceAdult}</span>
+                    <span className="text-5xl font-bold">₹{formattedAdultPrice}</span>
                     <span className={`ml-2 ${isHighlight ? 'text-primary-foreground opacity-80' : 'text-gray-500'}`}>/ adult</span>
-                    {pkg.priceChild > 0 && <span className={`block mt-1 text-sm ${isHighlight ? 'text-primary-foreground opacity-70' : 'text-gray-500'}`}>₹{pkg.priceChild} / child</span>}
+                    {pkg.priceChild > 0 && <span className={`block mt-1 text-sm ${isHighlight ? 'text-primary-foreground opacity-70' : 'text-gray-500'}`}>₹{formattedChildPrice} / child</span>}
                   </div>
 
                   <div className={`rounded-2xl p-6 mb-8 border ${isHighlight ? 'bg-white/10 backdrop-blur-sm border-white/10' : 'bg-gray-50 border-gray-100'}`}>
                     <h4 className={`font-bold mb-2 flex items-center gap-2 ${isHighlight ? '' : 'text-gray-900'}`}><Utensils className="w-4 h-4 text-accent" /> Package Details</h4>
                     <p className={`text-sm ${isHighlight ? 'opacity-90' : 'text-gray-700'}`}>
-                      Minimum Guests: {pkg.minGuests} <br/>
+                      Minimum Guests: {pkg.minGuests} {pkg.maxGuests ? `• Max Guests: ${pkg.maxGuests}` : ''}<br/>
                       Booking Type: {pkg.experienceType?.replace('_', ' ') || 'N/A'}
                     </p>
                   </div>
 
                   <ul className="space-y-4 mb-10 flex-1">
-                    {['Access to applicable resort areas', 'Dedicated support staff', 'All applicable taxes included'].map((item, i) => (
+                    {inclusionsList.map((item: string, i: number) => (
                       <li key={i} className="flex items-start gap-3">
                         <Check className={`w-5 h-5 shrink-0 mt-0.5 ${isHighlight ? 'text-accent' : 'text-primary'}`} />
                         <span className={isHighlight ? 'opacity-90' : 'text-gray-700'}>{item}</span>

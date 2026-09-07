@@ -6,9 +6,14 @@ import { ValidationPipe } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { AllExceptionsFilter } from './filters/all-exceptions.filter';
 
+import * as express from 'express';
+import * as path from 'path';
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
+  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
   app.enableCors({
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
     credentials: true,

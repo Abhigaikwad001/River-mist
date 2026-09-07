@@ -15,9 +15,12 @@ import { CapacityModule } from './capacity/capacity.module';
 import { QuotesModule } from './quotes/quotes.module';
 import { FoodModule } from './food/food.module';
 import { ActivitiesModule } from './activities/activities.module';
+import { EventsModule } from './events/events.module';
 import { AdminModule } from './admin/admin.module';
 import { MediaModule } from './media/media.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { DiscountsModule } from './discounts/discounts.module';
+import { ContentModule } from './content/content.module';
 
 @Module({
   imports: [
@@ -35,11 +38,14 @@ import { NotificationsModule } from './notifications/notifications.module';
     QuotesModule, 
     FoodModule, 
     ActivitiesModule,
+    EventsModule,
     ResourcesModule,
     CapacityModule,
     AdminModule,
     MediaModule,
-    NotificationsModule
+    NotificationsModule,
+    DiscountsModule,
+    ContentModule
   ],
   controllers: [AppController],
   providers: [

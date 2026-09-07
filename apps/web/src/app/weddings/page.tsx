@@ -17,7 +17,7 @@ export default function WeddingsLandingPage() {
     Promise.all([
       api.get('/packages').catch(() => ({ data: [] })),
       api.get('/resources').catch(() => ({ data: [] })),
-      api.get('/media?category=GALLERY').catch(() => ({ data: [] }))
+      api.get('/media?category=WEDDING&activeOnly=true').catch(() => ({ data: [] }))
     ]).then(([pkgRes, resRes, medRes]) => {
       // Filter packages
       const weddingPkgs = (pkgRes.data || []).filter((p: any) => 

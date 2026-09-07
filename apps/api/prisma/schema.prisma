@@ -32,9 +32,15 @@ model Package {
   minGuests      Int       @default(1)
   maxGuests      Int?
   active         Boolean   @default(true)
+  seasonalActive Boolean   @default(false)
+  validFrom      DateTime?
+  validUntil     DateTime?
+  inclusions     String[]  @default([])
   displayOrder   Int       @default(0)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+  mediaId        Int?
+  media          Media?    @relation(fields: [mediaId], references: [id])
   bookings       Booking[]
 }
 
@@ -46,18 +52,51 @@ model Activity {
   price             Int               @default(0)
   pricingType       String            @default("PER_PERSON")
   capacity          Int?
+  category          String?           @default("GENERAL")
+  location          String?
   active            Boolean           @default(true)
+  displayOrder      Int               @default(0)
+  mediaId           Int?
+  media             Media?            @relation(fields: [mediaId], references: [id])
   bookingActivities BookingActivity[]
 }
 
+model Event {
+  id           Int      @id @default(autoincrement())
+  title        String
+  description  String
+  image        String?
+  eventDate    DateTime
+  startTime    String?
+  endTime      String?
+  location     String?
+  capacity     Int?
+  price        Int      @default(0)
+  status       String   @default("PUBLISHED")
+  active       Boolean  @default(true)
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  mediaId      Int?
+  media        Media?   @relation(fields: [mediaId], references: [id])
+}
+
+
 model MenuItem {
-  id          Int     @id @default(autoincrement())
-  name        String
-  description String?
-  image       String?
-  meal        String
-  isVeg       Boolean @default(true)
-  active      Boolean @default(true)
+  id            Int      @id @default(autoincrement())
+  name          String
+  description   String?
+  image         String?
+  meal          String
+  category      String   @default("THALI")
+  tags          String[] @default([])
+  isVeg         Boolean  @default(true)
+  isSeasonal    Boolean  @default(false)
+  seasonalBadge String?
+  active        Boolean  @default(true)
+  displayOrder  Int      @default(0)
+  mediaId       Int?
+  media         Media?   @relation(fields: [mediaId], references: [id])
 }
 
 model Resource {
@@ -80,6 +119,12 @@ model Booking {
   packageId        Int
   headCountAdult   Int               @default(1)
   headCountChild   Int               @default(0)
+  subtotalAmount   Int               @default(0)
+  discountCode     String?
+  discountType     String?
+  discountValue    Int?              @default(0)
+  discountAmount   Int               @default(0)
+  discountId       Int?
   totalAmount      Int               @default(0)
   advanceRequired  Int               @default(0)
   amountPaid       Int               @default(0)
@@ -89,6 +134,7 @@ model Booking {
   updatedAt        DateTime          @updatedAt
   package          Package           @relation(fields: [packageId], references: [id])
   user             User              @relation(fields: [userId], references: [id])
+  discount         Discount?         @relation(fields: [discountId], references: [id])
   activities       BookingActivity[]
   resources        BookingResource[]
   payments         Payment[]
@@ -178,13 +224,27 @@ model AuditLog {
 }
 
 model Media {
-  id        Int      @id @default(autoincrement())
-  type      String
-  url       String
-  altText   String?
-  category  String
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
+  id           Int           @id @default(autoincrement())
+  type         String        @default("IMAGE")
+  url          String
+  title        String?
+  altText      String?
+  description  String?
+  category     String        @default("GALLERY")
+  active       Boolean       @default(true)
+  isFeatured   Boolean       @default(false)
+  displayOrder Int           @default(0)
+  fileSize     Int?
+  mimeType     String?
+  width        Int?
+  height       Int?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt @default(now())
+  packages     Package[]
+  activities   Activity[]
+  events       Event[]
+  menuItems    MenuItem[]
+  siteContents SiteContent[]
 }
 
 model Review {
@@ -198,15 +258,50 @@ model Review {
 }
 
 model Discount {
-  id         Int       @id @default(autoincrement())
-  code       String    @unique
-  type       String
-  value      Int
-  active     Boolean   @default(true)
-  usageLimit Int?
-  usageCount Int       @default(0)
-  validFrom  DateTime?
-  validUntil DateTime?
+  id                   Int       @id @default(autoincrement())
+  code                 String    @unique
+  name                 String?
+  description          String?
+  type                 String
+  value                Int
+  minBookingAmount     Int?      @default(0)
+  maxDiscountAmount    Int?
+  perCustomerLimit     Int?      @default(1)
+  applicablePackages   String[]  @default([])
+  applicableActivities String[]  @default([])
+  active               Boolean   @default(true)
+  usageLimit           Int?
+  usageCount           Int       @default(0)
+  validFrom            DateTime?
+  validUntil           DateTime?
+  displayOrder         Int       @default(0)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt @default(now())
+  bookings             Booking[]
+}
+
+model SiteContent {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  title     String
+  subtitle  String?
+  content   String?
+  image     String?
+  category  String   @default("GENERAL")
+  active    Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+  mediaId   Int?
+  media     Media?   @relation(fields: [mediaId], references: [id])
+}
+
+model DailyCapacityOverride {
+  id             Int      @id @default(autoincrement())
+  date           DateTime @unique
+  customCapacity Int?
+  isClosed       Boolean  @default(false)
+  reason         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 enum Role {

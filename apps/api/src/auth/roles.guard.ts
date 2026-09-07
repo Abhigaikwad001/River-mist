@@ -19,6 +19,9 @@ export class RolesGuard implements CanActivate {
     if (!user) {
       return false; // Failsafe if JwtAuthGuard is missing
     }
+    if (user.role === Role.SUPER_ADMIN) {
+      return true;
+    }
     return requiredRoles.includes(user.role);
   }
 }

@@ -7,7 +7,7 @@ import {
   LayoutDashboard, CalendarDays, Package, Users, 
   Settings, FileText, IndianRupee, MapPin, 
   HeartHandshake, Utensils, PartyPopper, Tent, 
-  BarChart3, LogOut
+  BarChart3, LogOut, Tag, Globe
 } from 'lucide-react';
 import AdminAuthWrapper from '@/components/AdminAuthWrapper';
 
@@ -104,6 +104,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <BarChart3 size={18} />
                   <span>Revenue</span>
                 </Link>
+                <Link href="/admin/discounts" className="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-[#2A522C] transition-colors text-sm">
+                  <Tag size={18} />
+                  <span>Discounts</span>
+                </Link>
               </>
             )}
 
@@ -116,6 +120,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <Link href="/admin/media" className="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-[#2A522C] transition-colors text-sm">
                   <Settings size={18} />
                   <span>Media</span>
+                </Link>
+                <Link href="/admin/content" className="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-[#2A522C] transition-colors text-sm">
+                  <Globe size={18} />
+                  <span>Website Content</span>
                 </Link>
               </>
             )}

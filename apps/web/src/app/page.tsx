@@ -1,11 +1,41 @@
 "use client";
 
+import { useEffect, useState } from 'react';
 import { Hero } from '../components/home/Hero';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion, Variants } from 'framer-motion';
+import api from '@/lib/api';
 
 export default function Home() {
+  const [featuredMedia, setFeaturedMedia] = useState<any[]>([]);
+
+  useEffect(() => {
+    api.get('/media?isFeatured=true&activeOnly=true')
+      .then(res => {
+        if (Array.isArray(res.data) && res.data.length > 0) {
+          setFeaturedMedia(res.data);
+        }
+      })
+      .catch(err => console.error('Failed to load featured media:', err));
+  }, []);
+
+  const defaultExperiences = [
+    { title: "Weddings", desc: "A majestic 1,000-seater lawn", category: "WEDDING", defaultImg: "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&q=80&w=600", link: "/weddings" },
+    { title: "Agro-Tourism", desc: "Connect with rural roots", category: "PACKAGE", defaultImg: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&q=80&w=600", link: "/packages" },
+    { title: "Aqua Zone", desc: "Luxurious half-circle pool", category: "RESORT", defaultImg: "https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?auto=format&fit=crop&q=80&w=600", link: "/explore/aqua" },
+    { title: "Adventure", desc: "Thrilling ATV & Ziplines", category: "ACTIVITY", defaultImg: "https://images.unsplash.com/photo-1533560904424-a0c61dc306fc?auto=format&fit=crop&q=80&w=600", link: "/explore/adventure" }
+  ];
+
+  const experiences = defaultExperiences.map(exp => {
+    const matchedMedia = featuredMedia.find(m => m.category?.toUpperCase() === exp.category);
+    return {
+      ...exp,
+      img: matchedMedia?.url || exp.defaultImg,
+      alt: matchedMedia?.altText || exp.title
+    };
+  });
+
   const stagger: Variants = {
     hidden: { opacity: 0, y: 50 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.8, staggerChildren: 0.2, ease: "easeOut" } }
@@ -36,12 +66,7 @@ export default function Home() {
           </motion.div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {[
-              { title: "Weddings", desc: "A majestic 1,000-seater lawn", img: "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&q=80&w=600", link: "/weddings" },
-              { title: "Agro-Tourism", desc: "Connect with rural roots", img: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&q=80&w=600", link: "/packages" },
-              { title: "Aqua Zone", desc: "Luxurious half-circle pool", img: "https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?auto=format&fit=crop&q=80&w=600", link: "/explore/aqua" },
-              { title: "Adventure", desc: "Thrilling ATV & Ziplines", img: "https://images.unsplash.com/photo-1533560904424-a0c61dc306fc?auto=format&fit=crop&q=80&w=600", link: "/explore/adventure" }
-            ].map((feature, i) => (
+            {experiences.map((feature, i) => (
               <motion.div 
                 initial={{ opacity: 0, y: 50 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -53,7 +78,7 @@ export default function Home() {
                 <div className="absolute inset-0 bg-[#1E3F20]">
                   <Image 
                     src={feature.img} 
-                    alt={feature.title} 
+                    alt={feature.alt || feature.title} 
                     fill
                     sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
                     className="object-cover opacity-70 group-hover:scale-110 group-hover:opacity-50 transition-all duration-1000 ease-out" 

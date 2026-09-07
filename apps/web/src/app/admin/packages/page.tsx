@@ -14,10 +14,15 @@ export default function PackagesPage() {
     name: '',
     description: '',
     experienceType: 'DAY_TOURISM',
+    image: '',
     priceAdult: 0,
     priceChild: 0,
     minGuests: 1,
     maxGuests: 0,
+    inclusions: '',
+    seasonalActive: false,
+    validFrom: '',
+    validUntil: '',
     active: true,
     displayOrder: 0
   });
@@ -40,8 +45,9 @@ export default function PackagesPage() {
   const openAddModal = () => {
     setEditingPkg(null);
     setFormData({
-      name: '', description: '', experienceType: 'DAY_TOURISM',
-      priceAdult: 0, priceChild: 0, minGuests: 1, maxGuests: 0, active: true, displayOrder: 0
+      name: '', description: '', experienceType: 'DAY_TOURISM', image: '',
+      priceAdult: 0, priceChild: 0, minGuests: 1, maxGuests: 0, inclusions: '',
+      seasonalActive: false, validFrom: '', validUntil: '', active: true, displayOrder: 0
     });
     setIsModalOpen(true);
   };
@@ -52,12 +58,17 @@ export default function PackagesPage() {
       name: pkg.name,
       description: pkg.description,
       experienceType: pkg.experienceType,
+      image: pkg.image || '',
       priceAdult: pkg.priceAdult,
       priceChild: pkg.priceChild,
       minGuests: pkg.minGuests,
       maxGuests: pkg.maxGuests || 0,
+      inclusions: Array.isArray(pkg.inclusions) ? pkg.inclusions.join(', ') : (pkg.inclusions || ''),
+      seasonalActive: pkg.seasonalActive || false,
+      validFrom: pkg.validFrom ? new Date(pkg.validFrom).toISOString().split('T')[0] : '',
+      validUntil: pkg.validUntil ? new Date(pkg.validUntil).toISOString().split('T')[0] : '',
       active: pkg.active,
-      displayOrder: pkg.displayOrder
+      displayOrder: pkg.displayOrder || 0
     });
     setIsModalOpen(true);
   };
@@ -78,7 +89,8 @@ export default function PackagesPage() {
     try {
       const payload = {
         ...formData,
-        maxGuests: formData.maxGuests === 0 ? null : formData.maxGuests
+        maxGuests: formData.maxGuests === 0 ? null : formData.maxGuests,
+        inclusions: formData.inclusions.split(',').map(s => s.trim()).filter(Boolean)
       };
 
       if (editingPkg) {
@@ -99,7 +111,7 @@ export default function PackagesPage() {
       <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100">
         <div>
           <h1 className="text-3xl font-serif text-[#1E3F20]">Packages</h1>
-          <p className="text-gray-600 mt-1">Manage all available booking packages.</p>
+          <p className="text-gray-600 mt-1">Manage all available booking packages and pricing.</p>
         </div>
         <button onClick={openAddModal} className="flex items-center gap-2 bg-[#1E3F20] text-white px-4 py-2 rounded-lg font-medium hover:bg-[#2A522C] transition-colors">
           <Plus size={18} /> Add Package
@@ -116,6 +128,7 @@ export default function PackagesPage() {
                 <th className="px-6 py-4">Name</th>
                 <th className="px-6 py-4">Type</th>
                 <th className="px-6 py-4">Price (Adult/Child)</th>
+                <th className="px-6 py-4">Seasonal</th>
                 <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
@@ -134,6 +147,11 @@ export default function PackagesPage() {
                   </td>
                   <td className="px-6 py-4 text-gray-600 text-sm">{p.experienceType}</td>
                   <td className="px-6 py-4 text-gray-900 font-medium">₹{p.priceAdult} / ₹{p.priceChild}</td>
+                  <td className="px-6 py-4">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${p.seasonalActive ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'}`}>
+                      {p.seasonalActive ? 'Seasonal' : 'Regular'}
+                    </span>
+                  </td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${p.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                       {p.active ? 'Active' : 'Inactive'}
@@ -162,7 +180,11 @@ export default function PackagesPage() {
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-medium mb-1">Description</label>
-                  <textarea required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full border p-2 rounded-lg h-24" />
+                  <textarea required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full border p-2 rounded-lg h-20" />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium mb-1">Inclusions (Comma separated)</label>
+                  <input type="text" value={formData.inclusions} onChange={e => setFormData({...formData, inclusions: e.target.value})} className="w-full border p-2 rounded-lg" placeholder="Welcome Drink, Lunch Buffet, Pool Access" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Experience Type</label>
@@ -196,6 +218,21 @@ export default function PackagesPage() {
                 <div>
                   <label className="block text-sm font-medium mb-1">Max Guests (0 for no limit)</label>
                   <input type="number" min="0" value={formData.maxGuests} onChange={e => setFormData({...formData, maxGuests: Number(e.target.value)})} className="w-full border p-2 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Image URL</label>
+                  <input type="text" value={formData.image} onChange={e => setFormData({...formData, image: e.target.value})} className="w-full border p-2 rounded-lg" placeholder="https://..." />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Display Order</label>
+                  <input type="number" min="0" value={formData.displayOrder} onChange={e => setFormData({...formData, displayOrder: Number(e.target.value)})} className="w-full border p-2 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Seasonal Status</label>
+                  <select value={formData.seasonalActive ? 'true' : 'false'} onChange={e => setFormData({...formData, seasonalActive: e.target.value === 'true'})} className="w-full border p-2 rounded-lg">
+                    <option value="false">Regular Package</option>
+                    <option value="true">Seasonal Package</option>
+                  </select>
                 </div>
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t mt-4">

@@ -126,30 +126,73 @@ async function main() {
 
   console.log('Activities seeded.');
 
-  // 5. Create Food Categories
+  // 5. Create Food & Thalis Catalog
   const foods = [
-    { name: 'Breakfast', meal: 'BREAKFAST', isVeg: true },
-    { name: 'Lunch', meal: 'LUNCH', isVeg: true },
-    { name: 'Evening Snacks', meal: 'SNACKS', isVeg: true },
-    { name: 'Dinner Veg', meal: 'DINNER', isVeg: true },
-    { name: 'Dinner Non-Veg', meal: 'DINNER', isVeg: false }
+    { 
+      name: 'Maharashtrian Thali', 
+      meal: 'LUNCH', 
+      category: 'THALI',
+      isVeg: true,
+      isSeasonal: false,
+      seasonalBadge: null,
+      tags: ['Authentic', 'Traditional', 'Local'],
+      description: 'Authentic regional flavors prepared with locally sourced ingredients. A timeless family recipe featuring hot bhakris, spiced gravies, pitla, and traditional sweets.',
+      image: 'https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?auto=format&fit=crop&q=80&w=1000',
+      displayOrder: 1
+    },
+    { 
+      name: 'Hurda Thali', 
+      meal: 'LUNCH', 
+      category: 'THALI',
+      isVeg: true,
+      isSeasonal: true,
+      seasonalBadge: 'Seasonal Harvest Special',
+      tags: ['Seasonal', 'Rustic', 'Traditional'],
+      description: 'Our winter harvest specialty featuring tender, freshly roasted Jowar (Hurda) from the coal pits, served with fiery garlic chutney, sweet jaggery, Shengdana chutney, and Zunka Bhakar.',
+      image: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&q=80&w=1000',
+      displayOrder: 2
+    },
+    { 
+      name: 'Royal Maratha Feast Thali', 
+      meal: 'DINNER', 
+      category: 'THALI',
+      isVeg: false,
+      isSeasonal: false,
+      seasonalBadge: null,
+      tags: ['Royal', 'Non-Veg', 'Spiced'],
+      description: 'A grand non-vegetarian feast with traditional Saoji & Malvani style chicken/mutton gravies, bhakri, indrayani rice, and authentic solkadhi.',
+      image: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&q=80&w=1000',
+      displayOrder: 3
+    },
+    { 
+      name: 'Agro Farm Breakfast Feast', 
+      meal: 'BREAKFAST', 
+      category: 'THALI',
+      isVeg: true,
+      isSeasonal: false,
+      seasonalBadge: null,
+      tags: ['Farm Fresh', 'Breakfast', 'Healthy'],
+      description: 'Fresh farm-style morning breakfast with Kanda Poha, Ukadpeni, hot Jalebis, fresh cow milk, and herbal chai.',
+      image: 'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?auto=format&fit=crop&q=80&w=1000',
+      displayOrder: 4
+    }
   ];
 
   for (const food of foods) {
     let existing = await prisma.menuItem.findFirst({ where: { name: food.name } });
-    if (!existing) {
+    if (existing) {
+      await prisma.menuItem.update({
+        where: { id: existing.id },
+        data: food
+      });
+    } else {
       await prisma.menuItem.create({
-        data: {
-          name: food.name,
-          meal: food.meal,
-          isVeg: food.isVeg,
-          description: `Standard ${food.name} offerings`
-        }
+        data: food
       });
     }
   }
 
-  console.log('Food Categories seeded.');
+  console.log('Food & Thalis Catalog seeded.');
 
   // 6. Development Seeding
   if (process.env.NODE_ENV === 'development') {

@@ -11,5 +11,15 @@
   
   "footer.about": "About Us",
   "footer.contact": "Contact Us",
-  "footer.policies": "Terms & Policies"
+  "footer.policies": "Terms & Policies",
+
+  "booking.promoCode": "Promo / Coupon Code",
+  "booking.apply": "Apply",
+  "booking.remove": "Remove",
+  "booking.subtotal": "Subtotal",
+  "booking.discount": "Discount",
+  "booking.finalTotal": "Final Total",
+  "booking.offerApplied": "Offer applied successfully!",
+  "booking.invalidOffer": "Invalid promo code"
 }
+

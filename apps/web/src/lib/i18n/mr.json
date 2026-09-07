@@ -11,5 +11,15 @@
   
   "footer.about": "आमच्याबद्दल",
   "footer.contact": "संपर्क",
-  "footer.policies": "अटी आणि धोरणे"
+  "footer.policies": "अटी आणि धोरणे",
+
+  "booking.promoCode": "प्रोमो / कूपन कोड",
+  "booking.apply": "लागू करा",
+  "booking.remove": "काढा",
+  "booking.subtotal": "उपएकूण",
+  "booking.discount": "सवलत",
+  "booking.finalTotal": "अंतिम एकूण",
+  "booking.offerApplied": "ऑफर यशस्वीरित्या लागू झाली!",
+  "booking.invalidOffer": "अवैध प्रोमो कोड"
 }
+

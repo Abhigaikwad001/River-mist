@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Request, ValidationPipe } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
@@ -6,6 +6,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '@prisma/client';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { RecordManualPaymentDto } from './dto/record-manual-payment.dto';
 
 @ApiTags('payments')
 @ApiBearerAuth()
@@ -35,15 +36,21 @@ export class PaymentsController {
 
   @ApiOperation({ summary: 'Record a manual payment (Admin)' })
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SUPER_ADMIN, Role.FINANCE_MANAGER)
+  @Roles(Role.SUPER_ADMIN, Role.FINANCE_MANAGER, Role.BOOKING_MANAGER)
   @Post('manual')
-  recordManualPayment(@Body() body: { bookingId: number, amount: number, method: string }) {
-    return this.paymentsService.recordManualPayment(body.bookingId, body.amount, body.method || 'CASH');
+  recordManualPayment(@Body(new ValidationPipe({ whitelist: true, transform: true })) body: RecordManualPaymentDto) {
+    return this.paymentsService.recordManualPayment(
+      body.bookingId, 
+      body.amount, 
+      body.method, 
+      body.referenceId, 
+      body.notes
+    );
   }
 
   @ApiOperation({ summary: 'Get all payments (Admin)' })
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SUPER_ADMIN, Role.FINANCE_MANAGER)
+  @Roles(Role.SUPER_ADMIN, Role.FINANCE_MANAGER, Role.BOOKING_MANAGER)
   @Get()
   getAllPayments() {
     return this.paymentsService.getAllPayments();
