@@ -47,21 +47,21 @@ export class DiscountsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.FINANCE_MANAGER)
   @Post()
-  createDiscount(@Body() dto: CreateDiscountDto) {
-    return this.discountsService.createDiscount(dto);
+  createDiscount(@Req() req: any, @Body() dto: CreateDiscountDto) {
+    return this.discountsService.createDiscount(dto, req.user?.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.FINANCE_MANAGER)
   @Patch(':id')
-  updateDiscount(@Param('id') id: string, @Body() dto: UpdateDiscountDto) {
-    return this.discountsService.updateDiscount(Number(id), dto);
+  updateDiscount(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateDiscountDto) {
+    return this.discountsService.updateDiscount(Number(id), dto, req.user?.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.FINANCE_MANAGER)
   @Delete(':id')
-  deleteDiscount(@Param('id') id: string) {
-    return this.discountsService.deleteDiscount(Number(id));
+  deleteDiscount(@Req() req: any, @Param('id') id: string) {
+    return this.discountsService.deleteDiscount(Number(id), req.user?.id);
   }
 }

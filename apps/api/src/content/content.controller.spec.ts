@@ -64,14 +64,16 @@ describe('ContentController', () => {
 
   it('should call service.upsertContent on POST /content', async () => {
     const dto: any = { key: 'home.hero.title', title: 'River Mist Resort' };
-    const res = await controller.upsertContent(dto);
+    const req = { user: { id: 1 } };
+    const res = await controller.upsertContent(req as any, dto);
     expect(res).toEqual(mockContentBlock);
-    expect(service.upsertContent).toHaveBeenCalledWith(dto);
+    expect(service.upsertContent).toHaveBeenCalledWith(dto, 1);
   });
 
   it('should call service.deleteContent on DELETE /content/:key', async () => {
-    const res = await controller.deleteContent('home.hero.title');
+    const req = { user: { id: 1 } };
+    const res = await controller.deleteContent(req as any, 'home.hero.title');
     expect(res).toEqual(mockContentBlock);
-    expect(service.deleteContent).toHaveBeenCalledWith('home.hero.title');
+    expect(service.deleteContent).toHaveBeenCalledWith('home.hero.title', 1);
   });
 });

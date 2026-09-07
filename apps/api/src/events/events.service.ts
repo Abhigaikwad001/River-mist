@@ -1,11 +1,15 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 
 @Injectable()
 export class EventsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditService: AuditService,
+  ) {}
 
   async getEvents(filters: any = {}) {
     return this.prisma.event.findMany({
@@ -58,23 +62,72 @@ export class EventsService {
     return processed;
   }
 
-  async createEvent(data: CreateEventDto) {
-    return this.prisma.event.create({ data: this.processData(data) });
+  async createEvent(data: CreateEventDto, userId?: number) {
+    const newEvent = await this.prisma.event.create({ data: this.processData(data) });
+
+    await this.auditService.logAction({
+      action: 'CREATE',
+      entity: 'EVENT',
+      entityId: newEvent.id,
+      userId,
+      description: `Created event "${newEvent.title}" (Date: ${newEvent.eventDate})`,
+      newValue: {
+        title: newEvent.title,
+        price: newEvent.price,
+        active: newEvent.active,
+      },
+    });
+
+    return newEvent;
   }
 
-  async updateEvent(id: number, data: UpdateEventDto) {
+  async updateEvent(id: number, data: UpdateEventDto, userId?: number) {
     const existing = await this.prisma.event.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException(`Event #${id} not found`);
     }
-    return this.prisma.event.update({ where: { id }, data: this.processData(data) });
+    const updated = await this.prisma.event.update({ where: { id }, data: this.processData(data) });
+
+    await this.auditService.logAction({
+      action: 'UPDATE',
+      entity: 'EVENT',
+      entityId: updated.id,
+      userId,
+      description: `Updated event "${updated.title}"`,
+      oldValue: {
+        title: existing.title,
+        price: existing.price,
+        active: existing.active,
+      },
+      newValue: {
+        title: updated.title,
+        price: updated.price,
+        active: updated.active,
+      },
+    });
+
+    return updated;
   }
 
-  async deleteEvent(id: number) {
+  async deleteEvent(id: number, userId?: number) {
     const existing = await this.prisma.event.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException(`Event #${id} not found`);
     }
-    return this.prisma.event.delete({ where: { id } });
+    const deleted = await this.prisma.event.delete({ where: { id } });
+
+    await this.auditService.logAction({
+      action: 'DELETE',
+      entity: 'EVENT',
+      entityId: id,
+      userId,
+      description: `Deleted event "${existing.title}"`,
+      oldValue: {
+        title: existing.title,
+        price: existing.price,
+      },
+    });
+
+    return deleted;
   }
 }

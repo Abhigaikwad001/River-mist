@@ -56,8 +56,9 @@ describe('EventsController', () => {
 
   it('should create an event', async () => {
     const dto = { title: 'New Fest', description: 'Fun fest', eventDate: '2026-10-10' };
-    const result = await controller.createEvent(dto as any);
-    expect(serviceMock.createEvent).toHaveBeenCalledWith(dto);
+    const req = { user: { id: 1 } };
+    const result = await controller.createEvent(req as any, dto as any);
+    expect(serviceMock.createEvent).toHaveBeenCalledWith(dto, 1);
     expect(result).toEqual(sampleEvent);
   });
 });

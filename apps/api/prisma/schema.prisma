@@ -18,6 +18,7 @@ model User {
   bookings     Booking[]
   reviews      Review[]
   quotes       WeddingQuote[]
+  auditLogs    AuditLog[]
 }
 
 model Package {
@@ -212,15 +213,19 @@ model QuoteItem {
 }
 
 model AuditLog {
-  id        Int      @id @default(autoincrement())
-  action    String
-  entity    String
-  entityId  Int
-  userId    Int?
-  oldValue  String?
-  newValue  String?
-  ipAddress String?
-  createdAt DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  action      String
+  entity      String
+  entityId    Int?
+  entityKey   String?
+  userId      Int?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  description String?
+  oldValue    String?
+  newValue    String?
+  metadata    String?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
 }
 
 model Media {

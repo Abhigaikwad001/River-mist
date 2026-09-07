@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { FoodService } from './food.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 
 describe('FoodService', () => {
@@ -22,11 +23,15 @@ describe('FoodService', () => {
     displayOrder: 1,
   };
 
+  const mockAuditService = {
+    logAction: jest.fn().mockResolvedValue(undefined),
+  };
+
   beforeEach(async () => {
     prismaMock = {
       menuItem: {
         findMany: jest.fn().mockResolvedValue([sampleMenuItem]),
-        findUnique: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue(sampleMenuItem),
         create: jest.fn().mockResolvedValue(sampleMenuItem),
         update: jest.fn().mockResolvedValue(sampleMenuItem),
         delete: jest.fn().mockResolvedValue(sampleMenuItem),
@@ -39,6 +44,10 @@ describe('FoodService', () => {
         {
           provide: PrismaService,
           useValue: prismaMock,
+        },
+        {
+          provide: AuditService,
+          useValue: mockAuditService,
         },
       ],
     }).compile();

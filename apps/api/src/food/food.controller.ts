@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, Query, ValidationPipe, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, Query, ValidationPipe, ParseIntPipe, Request } from '@nestjs/common';
 import { FoodService } from './food.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -29,24 +29,28 @@ export class FoodController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.CONTENT_MANAGER)
   @Post()
-  createMenuItem(@Body(new ValidationPipe({ whitelist: true, transform: true })) data: CreateMenuItemDto) {
-    return this.foodService.createMenuItem(data);
+  createMenuItem(
+    @Request() req: any,
+    @Body(new ValidationPipe({ whitelist: true, transform: true })) data: CreateMenuItemDto
+  ) {
+    return this.foodService.createMenuItem(data, req.user?.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.CONTENT_MANAGER)
   @Patch(':id')
   updateMenuItem(
+    @Request() req: any,
     @Param('id', ParseIntPipe) id: number,
     @Body(new ValidationPipe({ whitelist: true, transform: true })) data: UpdateMenuItemDto
   ) {
-    return this.foodService.updateMenuItem(id, data);
+    return this.foodService.updateMenuItem(id, data, req.user?.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.CONTENT_MANAGER)
   @Delete(':id')
-  deleteMenuItem(@Param('id', ParseIntPipe) id: number) {
-    return this.foodService.deleteMenuItem(id);
+  deleteMenuItem(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.foodService.deleteMenuItem(id, req.user?.id);
   }
 }

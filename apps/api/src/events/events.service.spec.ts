@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventsService } from './events.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 
 describe('EventsService', () => {
@@ -23,11 +24,15 @@ describe('EventsService', () => {
     displayOrder: 1,
   };
 
+  const mockAuditService = {
+    logAction: jest.fn().mockResolvedValue(undefined),
+  };
+
   beforeEach(async () => {
     prismaMock = {
       event: {
         findMany: jest.fn().mockResolvedValue([sampleEvent]),
-        findUnique: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue(sampleEvent),
         create: jest.fn().mockResolvedValue(sampleEvent),
         update: jest.fn().mockResolvedValue(sampleEvent),
         delete: jest.fn().mockResolvedValue(sampleEvent),
@@ -40,6 +45,10 @@ describe('EventsService', () => {
         {
           provide: PrismaService,
           useValue: prismaMock,
+        },
+        {
+          provide: AuditService,
+          useValue: mockAuditService,
         },
       ],
     }).compile();

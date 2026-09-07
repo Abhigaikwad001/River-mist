@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -15,7 +16,10 @@ export interface GetMediaParams {
 
 @Injectable()
 export class MediaService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditService: AuditService,
+  ) {}
 
   async getMedia(params: GetMediaParams = {}) {
     const { category, type, activeOnly, isFeatured, search, sortBy = 'createdAt', sortOrder = 'desc' } = params;
@@ -92,7 +96,7 @@ export class MediaService {
     return item;
   }
 
-  async createMedia(data: any) {
+  async createMedia(data: any, userId?: number) {
     if (!data.url) {
       throw new BadRequestException('Media URL is required');
     }
@@ -100,7 +104,7 @@ export class MediaService {
     const category = (data.category || 'GALLERY').toUpperCase();
     const type = (data.type || 'IMAGE').toUpperCase();
 
-    return this.prisma.media.create({
+    const created = await this.prisma.media.create({
       data: {
         type,
         url: data.url,
@@ -117,10 +121,26 @@ export class MediaService {
         height: data.height ? Number(data.height) : null,
       },
     });
+
+    await this.auditService.logAction({
+      action: 'CREATE',
+      entity: 'MEDIA',
+      entityId: created.id,
+      userId,
+      description: `Uploaded/added media asset "${created.title || created.url}" (${created.category})`,
+      newValue: {
+        url: created.url,
+        category: created.category,
+        title: created.title,
+        active: created.active,
+      },
+    });
+
+    return created;
   }
 
-  async updateMedia(id: number, data: any) {
-    await this.getMediaById(id);
+  async updateMedia(id: number, data: any, userId?: number) {
+    const existing = await this.getMediaById(id);
 
     const updateData: any = {};
     if (data.type !== undefined) updateData.type = data.type.toUpperCase();
@@ -135,13 +155,33 @@ export class MediaService {
     if (data.fileSize !== undefined) updateData.fileSize = Number(data.fileSize);
     if (data.mimeType !== undefined) updateData.mimeType = data.mimeType;
 
-    return this.prisma.media.update({
+    const updated = await this.prisma.media.update({
       where: { id },
       data: updateData,
     });
+
+    await this.auditService.logAction({
+      action: 'UPDATE',
+      entity: 'MEDIA',
+      entityId: updated.id,
+      userId,
+      description: `Updated media asset #${updated.id} "${updated.title || updated.url}"`,
+      oldValue: {
+        title: existing.title,
+        category: existing.category,
+        active: existing.active,
+      },
+      newValue: {
+        title: updated.title,
+        category: updated.category,
+        active: updated.active,
+      },
+    });
+
+    return updated;
   }
 
-  async deleteMedia(id: number) {
+  async deleteMedia(id: number, userId?: number) {
     const item = await this.getMediaById(id);
 
     // If local file, attempt cleanup
@@ -157,15 +197,39 @@ export class MediaService {
       }
     }
 
-    return this.prisma.media.delete({ where: { id } });
+    const deleted = await this.prisma.media.delete({ where: { id } });
+
+    await this.auditService.logAction({
+      action: 'DELETE',
+      entity: 'MEDIA',
+      entityId: id,
+      userId,
+      description: `Deleted media asset #${id} "${item.title || item.url}"`,
+      oldValue: {
+        url: item.url,
+        category: item.category,
+      },
+    });
+
+    return deleted;
   }
 
-  async bulkOperation(action: string, ids: number[], payload: any = {}) {
+  async bulkOperation(action: string, ids: number[], payload: any = {}, userId?: number) {
     if (!Array.isArray(ids) || ids.length === 0) {
       throw new BadRequestException('At least one media ID must be specified');
     }
 
-    switch (action.toUpperCase()) {
+    const upperAction = action.toUpperCase();
+
+    await this.auditService.logAction({
+      action: `BULK_${upperAction}`,
+      entity: 'MEDIA',
+      userId,
+      description: `Performed bulk operation ${upperAction} on ${ids.length} media items`,
+      metadata: { ids, payload },
+    });
+
+    switch (upperAction) {
       case 'ACTIVATE':
         return this.prisma.media.updateMany({
           where: { id: { in: ids } },

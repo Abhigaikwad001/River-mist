@@ -3,6 +3,7 @@ import { BookingsService } from './bookings.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CapacityService } from '../capacity/capacity.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AuditService } from '../audit/audit.service';
 import { BadRequestException } from '@nestjs/common';
 import { EventType, BookingStatus } from '@prisma/client';
 
@@ -10,6 +11,10 @@ describe('BookingsService', () => {
   let service: BookingsService;
   let prisma: any;
   let tx: any;
+
+  const mockAuditService = {
+    logAction: jest.fn().mockResolvedValue(undefined),
+  };
 
   beforeEach(async () => {
     tx = {
@@ -67,6 +72,10 @@ describe('BookingsService', () => {
             sendBookingRequested: jest.fn().mockResolvedValue(undefined),
             sendBookingStatusUpdated: jest.fn().mockResolvedValue(undefined),
           },
+        },
+        {
+          provide: AuditService,
+          useValue: mockAuditService,
         },
       ],
     }).compile();

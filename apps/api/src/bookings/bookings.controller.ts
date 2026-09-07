@@ -54,10 +54,11 @@ export class BookingsController {
   @Roles(Role.SUPER_ADMIN, Role.BOOKING_MANAGER)
   @Post(':id/status')
   updateBookingStatus(
+    @Request() req: any,
     @Param('id') id: string,
     @Body('status') status: any
   ) {
-    return this.bookingsService.updateBookingStatus(Number(id), status);
+    return this.bookingsService.updateBookingStatus(Number(id), status, req.user?.id);
   }
 
   @ApiOperation({ summary: 'Update booking notes (Admin)' })
@@ -65,10 +66,11 @@ export class BookingsController {
   @Roles(Role.SUPER_ADMIN, Role.BOOKING_MANAGER)
   @Post(':id/notes')
   updateBookingNotes(
+    @Request() req: any,
     @Param('id') id: string,
     @Body('notes') notes: string
   ) {
-    return this.bookingsService.updateBookingNotes(Number(id), notes);
+    return this.bookingsService.updateBookingNotes(Number(id), notes, req.user?.id);
   }
 
   @ApiOperation({ summary: 'Get a specific booking' })

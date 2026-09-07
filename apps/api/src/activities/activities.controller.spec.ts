@@ -56,8 +56,9 @@ describe('ActivitiesController', () => {
 
   it('should create an activity', async () => {
     const dto = { name: 'Archery Range', description: 'Fun shooting' };
-    const result = await controller.createActivity(dto as any);
-    expect(serviceMock.createActivity).toHaveBeenCalledWith(dto);
+    const req = { user: { id: 1 } };
+    const result = await controller.createActivity(req as any, dto as any);
+    expect(serviceMock.createActivity).toHaveBeenCalledWith(dto, 1);
     expect(result).toEqual(sampleActivity);
   });
 });

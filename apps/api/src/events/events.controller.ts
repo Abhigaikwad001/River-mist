@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, Query, ValidationPipe, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, Query, ValidationPipe, ParseIntPipe, Request } from '@nestjs/common';
 import { EventsService } from './events.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -30,24 +30,28 @@ export class EventsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.EVENT_MANAGER, Role.CONTENT_MANAGER)
   @Post()
-  createEvent(@Body(new ValidationPipe({ whitelist: true, transform: true })) data: CreateEventDto) {
-    return this.eventsService.createEvent(data);
+  createEvent(
+    @Request() req: any,
+    @Body(new ValidationPipe({ whitelist: true, transform: true })) data: CreateEventDto
+  ) {
+    return this.eventsService.createEvent(data, req.user?.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.EVENT_MANAGER, Role.CONTENT_MANAGER)
   @Patch(':id')
   updateEvent(
+    @Request() req: any,
     @Param('id', ParseIntPipe) id: number,
     @Body(new ValidationPipe({ whitelist: true, transform: true })) data: UpdateEventDto
   ) {
-    return this.eventsService.updateEvent(id, data);
+    return this.eventsService.updateEvent(id, data, req.user?.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.EVENT_MANAGER, Role.CONTENT_MANAGER)
   @Delete(':id')
-  deleteEvent(@Param('id', ParseIntPipe) id: number) {
-    return this.eventsService.deleteEvent(id);
+  deleteEvent(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.eventsService.deleteEvent(id, req.user?.id);
   }
 }

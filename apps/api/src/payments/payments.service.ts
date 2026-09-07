@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import * as crypto from 'crypto';
 import Razorpay from 'razorpay';
 import { BookingStatus, PaymentStatus } from '@prisma/client';
@@ -13,7 +14,8 @@ export class PaymentsService {
 
   constructor(
     private prisma: PrismaService,
-    private notificationsService: NotificationsService
+    private notificationsService: NotificationsService,
+    private auditService: AuditService,
   ) {
     const key_id = process.env.RAZORPAY_KEY_ID;
     const key_secret = process.env.RAZORPAY_KEY_SECRET;
@@ -223,13 +225,14 @@ export class PaymentsService {
     amount: number, 
     method: string, 
     referenceId?: string, 
-    notes?: string
+    notes?: string,
+    actorUserId?: number
   ) {
     if (!amount || isNaN(amount) || amount <= 0) {
       throw new BadRequestException('Payment amount must be a positive number');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const booking = await tx.booking.findUnique({ 
         where: { id: bookingId },
         include: { user: true }
@@ -290,6 +293,22 @@ export class PaymentsService {
         payment 
       };
     });
+
+    await this.auditService.logAction({
+      action: 'PAYMENT_RECORDED',
+      entity: 'PAYMENT',
+      entityId: result.payment.id,
+      userId: actorUserId,
+      description: `Recorded ₹${amount} ${method} payment for booking #${result.bookingId}`,
+      newValue: {
+        amount,
+        method: result.payment.method,
+        bookingId: result.bookingId,
+        referenceId: referenceId || null,
+      },
+    });
+
+    return result;
   }
 
   /**
@@ -312,8 +331,8 @@ export class PaymentsService {
   /**
    * Refund a Payment (Admin)
    */
-  async refundPayment(paymentId: number, amount?: number) {
-    return this.prisma.$transaction(async (tx) => {
+  async refundPayment(paymentId: number, amount?: number, actorUserId?: number) {
+    const result = await this.prisma.$transaction(async (tx) => {
       const payment = await tx.payment.findUnique({ 
         where: { id: paymentId },
         include: { booking: true }
@@ -362,5 +381,16 @@ export class PaymentsService {
         throw new BadRequestException('Failed to process refund with Razorpay');
       }
     });
+
+    await this.auditService.logAction({
+      action: 'PAYMENT_REFUNDED',
+      entity: 'PAYMENT',
+      entityId: paymentId,
+      userId: actorUserId,
+      description: `Refunded ₹${amount || 'full'} for payment #${paymentId}`,
+      newValue: { refundStatus: result.status, refundId: result.refundId },
+    });
+
+    return result;
   }
 }

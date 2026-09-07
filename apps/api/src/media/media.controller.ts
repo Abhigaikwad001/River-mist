@@ -11,6 +11,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Request,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MediaService } from './media.service';
@@ -55,6 +56,7 @@ export class MediaController {
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
   async uploadMedia(
+    @Request() req: any,
     @UploadedFile() file: any,
     @Body('category') category?: string,
     @Body('title') title?: string,
@@ -79,38 +81,39 @@ export class MediaController {
       mimeType: savedFile.mimeType,
       active: true,
       isFeatured: isFeatured === 'true',
-    });
+    }, req.user?.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.CONTENT_MANAGER, Role.EVENT_MANAGER)
   @Post()
-  createMedia(@Body() data: any) {
-    return this.mediaService.createMedia(data);
+  createMedia(@Request() req: any, @Body() data: any) {
+    return this.mediaService.createMedia(data, req.user?.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.CONTENT_MANAGER, Role.EVENT_MANAGER)
   @Post('bulk')
   bulkOperation(
+    @Request() req: any,
     @Body('action') action: string,
     @Body('ids') ids: number[],
     @Body('payload') payload?: any,
   ) {
-    return this.mediaService.bulkOperation(action, ids, payload);
+    return this.mediaService.bulkOperation(action, ids, payload, req.user?.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.CONTENT_MANAGER, Role.EVENT_MANAGER)
   @Patch(':id')
-  updateMedia(@Param('id') id: string, @Body() data: any) {
-    return this.mediaService.updateMedia(Number(id), data);
+  updateMedia(@Request() req: any, @Param('id') id: string, @Body() data: any) {
+    return this.mediaService.updateMedia(Number(id), data, req.user?.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.CONTENT_MANAGER)
   @Delete(':id')
-  deleteMedia(@Param('id') id: string) {
-    return this.mediaService.deleteMedia(Number(id));
+  deleteMedia(@Request() req: any, @Param('id') id: string) {
+    return this.mediaService.deleteMedia(Number(id), req.user?.id);
   }
 }

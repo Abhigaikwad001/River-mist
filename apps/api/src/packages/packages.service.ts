@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { EventType } from '@prisma/client';
 
 @Injectable()
 export class PackagesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditService: AuditService,
+  ) {}
 
   async getPackages(type?: string, all?: boolean, targetDate?: string) {
     const where: any = {};
@@ -42,7 +46,7 @@ export class PackagesService {
     return pkg;
   }
 
-  async createPackage(data: any) {
+  async createPackage(data: any, userId?: number) {
     if (data.priceAdult !== undefined) {
       data.priceAdult = Number(data.priceAdult);
       if (isNaN(data.priceAdult) || data.priceAdult < 0) {
@@ -74,10 +78,29 @@ export class PackagesService {
       data.slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
     }
 
-    return this.prisma.package.create({ data });
+    const newPkg = await this.prisma.package.create({ data });
+
+    await this.auditService.logAction({
+      action: 'CREATE',
+      entity: 'PACKAGE',
+      entityId: newPkg.id,
+      userId,
+      description: `Created package "${newPkg.name}" (Adult: ₹${newPkg.priceAdult}, Child: ₹${newPkg.priceChild})`,
+      newValue: {
+        name: newPkg.name,
+        priceAdult: newPkg.priceAdult,
+        priceChild: newPkg.priceChild,
+        experienceType: newPkg.experienceType,
+        active: newPkg.active,
+      },
+    });
+
+    return newPkg;
   }
 
-  async updatePackage(id: number, data: any) {
+  async updatePackage(id: number, data: any, userId?: number) {
+    const oldPkg = await this.getPackageById(id);
+
     if (data.priceAdult !== undefined) {
       data.priceAdult = Number(data.priceAdult);
       if (isNaN(data.priceAdult) || data.priceAdult < 0) {
@@ -105,13 +128,59 @@ export class PackagesService {
       }
     }
 
-    return this.prisma.package.update({
+    const updatedPkg = await this.prisma.package.update({
       where: { id },
       data
     });
+
+    const priceChanged = (data.priceAdult !== undefined && data.priceAdult !== oldPkg.priceAdult) ||
+                        (data.priceChild !== undefined && data.priceChild !== oldPkg.priceChild);
+
+    const action = priceChanged ? 'PRICE_CHANGE' : 'UPDATE';
+    const description = priceChanged
+      ? `Package "${updatedPkg.name}" price updated: Adult ₹${oldPkg.priceAdult} → ₹${updatedPkg.priceAdult}, Child ₹${oldPkg.priceChild} → ₹${updatedPkg.priceChild}`
+      : `Updated package "${updatedPkg.name}"`;
+
+    await this.auditService.logAction({
+      action,
+      entity: 'PACKAGE',
+      entityId: updatedPkg.id,
+      userId,
+      description,
+      oldValue: {
+        name: oldPkg.name,
+        priceAdult: oldPkg.priceAdult,
+        priceChild: oldPkg.priceChild,
+        active: oldPkg.active,
+      },
+      newValue: {
+        name: updatedPkg.name,
+        priceAdult: updatedPkg.priceAdult,
+        priceChild: updatedPkg.priceChild,
+        active: updatedPkg.active,
+      },
+    });
+
+    return updatedPkg;
   }
 
-  async deletePackage(id: number) {
-    return this.prisma.package.delete({ where: { id } });
+  async deletePackage(id: number, userId?: number) {
+    const oldPkg = await this.getPackageById(id);
+    const deleted = await this.prisma.package.delete({ where: { id } });
+
+    await this.auditService.logAction({
+      action: 'DELETE',
+      entity: 'PACKAGE',
+      entityId: id,
+      userId,
+      description: `Deleted package "${oldPkg.name}"`,
+      oldValue: {
+        name: oldPkg.name,
+        priceAdult: oldPkg.priceAdult,
+        priceChild: oldPkg.priceChild,
+      },
+    });
+
+    return deleted;
   }
 }

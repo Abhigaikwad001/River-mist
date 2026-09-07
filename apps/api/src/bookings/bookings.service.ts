@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { BookingStatus, PaymentStatus, EventType } from '@prisma/client';
 import { CreateBookingDto } from './dto/create-booking.dto/create-booking.dto';
 import { CapacityService } from '../capacity/capacity.service';
@@ -10,7 +11,8 @@ export class BookingsService {
   constructor(
     private prisma: PrismaService, 
     private capacityService: CapacityService,
-    private notificationsService: NotificationsService
+    private notificationsService: NotificationsService,
+    private auditService: AuditService,
   ) {}
 
   /**
@@ -246,6 +248,21 @@ export class BookingsService {
       timeout: 15000 
     });
 
+    await this.auditService.logAction({
+      action: 'CREATE',
+      entity: 'BOOKING',
+      entityId: booking.id,
+      entityKey: booking.bookingNumber,
+      userId: authUserId,
+      description: `Created booking #${booking.bookingNumber} (${booking.type}) for ${totalGuests} guests (Total: ₹${booking.totalAmount})`,
+      newValue: {
+        bookingNumber: booking.bookingNumber,
+        type: booking.type,
+        totalAmount: booking.totalAmount,
+        status: booking.status,
+      },
+    });
+
     // Fire & forget notification
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (user) {
@@ -284,7 +301,7 @@ export class BookingsService {
     });
   }
 
-  async updateBookingStatus(bookingId: number, newStatus: BookingStatus) {
+  async updateBookingStatus(bookingId: number, newStatus: BookingStatus, actorUserId?: number) {
     const booking = await this.prisma.booking.findUnique({ where: { id: bookingId } });
     if (!booking) {
       throw new BadRequestException('Booking not found');
@@ -323,6 +340,17 @@ export class BookingsService {
       include: { user: true }
     });
 
+    await this.auditService.logAction({
+      action: 'STATUS_CHANGE',
+      entity: 'BOOKING',
+      entityId: bookingId,
+      entityKey: booking.bookingNumber,
+      userId: actorUserId,
+      description: `Booking #${booking.bookingNumber} status changed: ${currentStatus} → ${newStatus}`,
+      oldValue: { status: currentStatus },
+      newValue: { status: newStatus },
+    });
+
     // Fire & forget notification
     this.notificationsService.sendBookingStatusUpdated(
       updatedBooking.id,
@@ -335,15 +363,28 @@ export class BookingsService {
     return updatedBooking;
   }
 
-  async updateBookingNotes(bookingId: number, notes: string) {
+  async updateBookingNotes(bookingId: number, notes: string, actorUserId?: number) {
     const booking = await this.prisma.booking.findUnique({ where: { id: bookingId } });
     if (!booking) {
       throw new BadRequestException('Booking not found');
     }
-    return this.prisma.booking.update({
+    const updated = await this.prisma.booking.update({
       where: { id: bookingId },
       data: { notes }
     });
+
+    await this.auditService.logAction({
+      action: 'UPDATE',
+      entity: 'BOOKING',
+      entityId: bookingId,
+      entityKey: booking.bookingNumber,
+      userId: actorUserId,
+      description: `Updated notes on booking #${booking.bookingNumber}`,
+      oldValue: { notes: booking.notes },
+      newValue: { notes: updated.notes },
+    });
+
+    return updated;
   }
 
   async getBookingById(id: number) {

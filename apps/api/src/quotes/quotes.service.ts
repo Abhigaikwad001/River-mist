@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { QuoteStatus } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import * as crypto from 'crypto';
@@ -8,7 +9,8 @@ import * as crypto from 'crypto';
 export class QuotesService {
   constructor(
     private prisma: PrismaService,
-    private notificationsService: NotificationsService
+    private notificationsService: NotificationsService,
+    private auditService: AuditService,
   ) {}
 
   async createQuote(data: { 
@@ -83,6 +85,15 @@ export class QuotesService {
       quote.quoteNumber
     ).catch((err: unknown) => console.error('Failed to dispatch quote creation notification:', err));
 
+    await this.auditService.logAction({
+      action: 'CREATE',
+      entity: 'QUOTE',
+      entityId: quote.id,
+      userId: authUserId,
+      description: `Created quote #${quote.quoteNumber} for ${quote.user.name} (${quote.user.email})`,
+      newValue: { quoteNumber: quote.quoteNumber, status: quote.status, total: quote.total },
+    });
+
     return quote;
   }
 
@@ -114,11 +125,11 @@ export class QuotesService {
     });
   }
 
-  async updateQuoteItems(quoteId: number, items: { category: string; description: string; amount: number }[]) {
+  async updateQuoteItems(quoteId: number, items: { category: string; description: string; amount: number }[], userId?: number) {
     const quote = await this.prisma.weddingQuote.findUnique({ where: { id: quoteId } });
     if (!quote) throw new BadRequestException('Quote not found');
 
-    return this.prisma.$transaction(async (tx) => {
+    const updatedQuote = await this.prisma.$transaction(async (tx) => {
       // Delete existing items
       await tx.quoteItem.deleteMany({ where: { quoteId } });
       
@@ -146,9 +157,21 @@ export class QuotesService {
         include: { items: true, user: true }
       });
     });
+
+    await this.auditService.logAction({
+      action: 'UPDATE',
+      entity: 'QUOTE',
+      entityId: quoteId,
+      userId,
+      description: `Updated items for quote #${quote.quoteNumber}: total ₹${updatedQuote.total}`,
+      oldValue: { subtotal: quote.subtotal, total: quote.total },
+      newValue: { subtotal: updatedQuote.subtotal, total: updatedQuote.total, itemsCount: items?.length || 0 },
+    });
+
+    return updatedQuote;
   }
 
-  async convertQuoteToBooking(quoteId: number) {
+  async convertQuoteToBooking(quoteId: number, userId?: number) {
     const quote = await this.prisma.weddingQuote.findUnique({
       where: { id: quoteId },
       include: { items: true, user: true }
@@ -158,7 +181,7 @@ export class QuotesService {
     if (quote.status !== QuoteStatus.APPROVED) throw new BadRequestException('Quote must be APPROVED before conversion');
     if (quote.bookingId) throw new BadRequestException('Quote is already converted to a booking');
 
-    return this.prisma.$transaction(async (tx) => {
+    const updatedQuote = await this.prisma.$transaction(async (tx) => {
       // Find or create a generic custom event package
       let customPackage = await tx.package.findUnique({ where: { slug: 'custom-event' } });
       if (!customPackage) {
@@ -197,7 +220,7 @@ export class QuotesService {
       });
 
       // Update Quote Status
-      const updatedQuote = await tx.weddingQuote.update({
+      const converted = await tx.weddingQuote.update({
         where: { id: quoteId },
         data: {
           status: QuoteStatus.CONVERTED,
@@ -206,17 +229,30 @@ export class QuotesService {
         include: { items: true, user: true, booking: true }
       });
 
-      return updatedQuote;
+      return converted;
     });
+
+    await this.auditService.logAction({
+      action: 'STATUS_CHANGE',
+      entity: 'QUOTE',
+      entityId: quoteId,
+      userId,
+      description: `Converted quote #${quote.quoteNumber} to booking #${updatedQuote.booking?.bookingNumber}`,
+      oldValue: { status: quote.status, bookingId: null },
+      newValue: { status: QuoteStatus.CONVERTED, bookingId: updatedQuote.bookingId },
+    });
+
+    return updatedQuote;
   }
 
-  async updateQuoteStatus(id: number, status: QuoteStatus) {
+  async updateQuoteStatus(id: number, status: QuoteStatus, userId?: number) {
     const quote = await this.prisma.weddingQuote.findUnique({ 
       where: { id },
       include: { user: true }
     });
     if (!quote) throw new BadRequestException('Quote not found');
 
+    const previousStatus = quote.status;
     const updatedQuote = await this.prisma.weddingQuote.update({
       where: { id },
       data: { status },
@@ -231,6 +267,16 @@ export class QuotesService {
       updatedQuote.quoteNumber,
       updatedQuote.status
     ).catch((err: unknown) => console.error('Failed to dispatch quote status notification:', err));
+
+    await this.auditService.logAction({
+      action: 'STATUS_CHANGE',
+      entity: 'QUOTE',
+      entityId: id,
+      userId,
+      description: `Updated status for quote #${quote.quoteNumber} from ${previousStatus} to ${status}`,
+      oldValue: { status: previousStatus },
+      newValue: { status },
+    });
 
     return updatedQuote;
   }

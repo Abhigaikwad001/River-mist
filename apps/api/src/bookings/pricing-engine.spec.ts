@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BookingsService } from './bookings.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CapacityService } from '../capacity/capacity.service';
+import { AuditService } from '../audit/audit.service';
 import { EventType, BookingStatus } from '@prisma/client';
 import { BadRequestException } from '@nestjs/common';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -10,6 +11,10 @@ describe('Pricing Engine (Phase 4)', () => {
   let service: BookingsService;
   let prisma: any;
   let tx: any;
+
+  const mockAuditService = {
+    logAction: jest.fn().mockResolvedValue(undefined),
+  };
 
   beforeEach(async () => {
     tx = {
@@ -64,6 +69,10 @@ describe('Pricing Engine (Phase 4)', () => {
             sendBookingStatusUpdated: jest.fn().mockResolvedValue(true),
             sendPaymentStatus: jest.fn().mockResolvedValue(true),
           },
+        },
+        {
+          provide: AuditService,
+          useValue: mockAuditService,
         },
       ],
     }).compile();

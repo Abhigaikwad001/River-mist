@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PackagesService } from './packages.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 describe('PackagesService', () => {
@@ -17,6 +18,10 @@ describe('PackagesService', () => {
     },
   };
 
+  const mockAuditService = {
+    logAction: jest.fn().mockResolvedValue(undefined),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -24,6 +29,10 @@ describe('PackagesService', () => {
         {
           provide: PrismaService,
           useValue: mockPrismaService,
+        },
+        {
+          provide: AuditService,
+          useValue: mockAuditService,
         },
       ],
     }).compile();
@@ -112,7 +121,8 @@ describe('PackagesService', () => {
     });
 
     it('should update package adult and child prices correctly in database', async () => {
-      mockPrismaService.package.update.mockImplementation(({ data }) => Promise.resolve({ id: 1, ...data }));
+      mockPrismaService.package.findUnique.mockResolvedValue({ id: 1, name: 'Pkg 1', priceAdult: 1500, priceChild: 800, active: true });
+      mockPrismaService.package.update.mockImplementation(({ data }) => Promise.resolve({ id: 1, name: 'Pkg 1', ...data }));
 
       const result = await service.updatePackage(1, {
         priceAdult: 1800,

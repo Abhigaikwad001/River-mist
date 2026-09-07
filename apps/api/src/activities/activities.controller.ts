@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, Query, ValidationPipe, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, Query, ValidationPipe, ParseIntPipe, Request } from '@nestjs/common';
 import { ActivitiesService } from './activities.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -30,24 +30,28 @@ export class ActivitiesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.EVENT_MANAGER, Role.CONTENT_MANAGER, Role.FINANCE_MANAGER)
   @Post()
-  createActivity(@Body(new ValidationPipe({ whitelist: true, transform: true })) data: CreateActivityDto) {
-    return this.activitiesService.createActivity(data);
+  createActivity(
+    @Request() req: any,
+    @Body(new ValidationPipe({ whitelist: true, transform: true })) data: CreateActivityDto
+  ) {
+    return this.activitiesService.createActivity(data, req.user?.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.EVENT_MANAGER, Role.CONTENT_MANAGER, Role.FINANCE_MANAGER)
   @Patch(':id')
   updateActivity(
+    @Request() req: any,
     @Param('id', ParseIntPipe) id: number,
     @Body(new ValidationPipe({ whitelist: true, transform: true })) data: UpdateActivityDto
   ) {
-    return this.activitiesService.updateActivity(id, data);
+    return this.activitiesService.updateActivity(id, data, req.user?.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.EVENT_MANAGER, Role.CONTENT_MANAGER, Role.FINANCE_MANAGER)
   @Delete(':id')
-  deleteActivity(@Param('id', ParseIntPipe) id: number) {
-    return this.activitiesService.deleteActivity(id);
+  deleteActivity(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.activitiesService.deleteActivity(id, req.user?.id);
   }
 }

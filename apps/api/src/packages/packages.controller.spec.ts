@@ -51,8 +51,9 @@ describe('PackagesController', () => {
     };
     mockPackagesService.createPackage.mockResolvedValue({ id: 1, ...dto });
 
-    const result = await controller.createPackage(dto);
-    expect(mockPackagesService.createPackage).toHaveBeenCalledWith(dto);
+    const req = { user: { id: 1 } };
+    const result = await controller.createPackage(req as any, dto);
+    expect(mockPackagesService.createPackage).toHaveBeenCalledWith(dto, 1);
     expect(result.id).toBe(1);
   });
 });

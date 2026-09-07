@@ -66,9 +66,10 @@ describe('DiscountsController', () => {
       validFrom: '2026-01-01',
       validUntil: '2026-12-31',
     };
-    const res = await controller.createDiscount(dto);
+    const req = { user: { id: 1 } };
+    const res = await controller.createDiscount(req as any, dto);
     expect(res).toEqual(mockDiscount);
-    expect(service.createDiscount).toHaveBeenCalledWith(dto);
+    expect(service.createDiscount).toHaveBeenCalledWith(dto, 1);
   });
 
   it('should call service.getDiscounts on GET /discounts', async () => {
@@ -98,14 +99,16 @@ describe('DiscountsController', () => {
 
   it('should call service.updateDiscount on PATCH /discounts/:id', async () => {
     const dto: any = { name: 'Updated Monsoon' };
-    const res = await controller.updateDiscount('1', dto);
+    const req = { user: { id: 1 } };
+    const res = await controller.updateDiscount(req as any, '1', dto);
     expect(res.name).toBe('Updated Monsoon');
-    expect(service.updateDiscount).toHaveBeenCalledWith(1, dto);
+    expect(service.updateDiscount).toHaveBeenCalledWith(1, dto, 1);
   });
 
   it('should call service.deleteDiscount on DELETE /discounts/:id', async () => {
-    const res = await controller.deleteDiscount('1');
+    const req = { user: { id: 1 } };
+    const res = await controller.deleteDiscount(req as any, '1');
     expect(res).toEqual(mockDiscount);
-    expect(service.deleteDiscount).toHaveBeenCalledWith(1);
+    expect(service.deleteDiscount).toHaveBeenCalledWith(1, 1);
   });
 });

@@ -34,9 +34,11 @@ export class QuotesController {
   @Patch(':id/status')
   async updateQuoteStatus(
     @Param('id', ParseIntPipe) id: number,
-    @Body('status') status: QuoteStatus
+    @Body('status') status: QuoteStatus,
+    @Request() req: any,
   ) {
-    return this.quotesService.updateQuoteStatus(id, status);
+    const userId = req.user?.sub || req.user?.id;
+    return this.quotesService.updateQuoteStatus(id, status, userId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -44,17 +46,21 @@ export class QuotesController {
   @Patch(':id/items')
   async updateQuoteItems(
     @Param('id', ParseIntPipe) id: number,
-    @Body('items') items: any[]
+    @Body('items') items: any[],
+    @Request() req: any,
   ) {
-    return this.quotesService.updateQuoteItems(id, items);
+    const userId = req.user?.sub || req.user?.id;
+    return this.quotesService.updateQuoteItems(id, items, userId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.BOOKING_MANAGER, Role.EVENT_MANAGER)
   @Post(':id/convert')
   async convertQuoteToBooking(
-    @Param('id', ParseIntPipe) id: number
+    @Param('id', ParseIntPipe) id: number,
+    @Request() req: any,
   ) {
-    return this.quotesService.convertQuoteToBooking(id);
+    const userId = req.user?.sub || req.user?.id;
+    return this.quotesService.convertQuoteToBooking(id, userId);
   }
 }

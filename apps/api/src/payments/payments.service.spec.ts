@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PaymentsService } from './payments.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { BadRequestException } from '@nestjs/common';
 import { BookingStatus, PaymentStatus } from '@prisma/client';
 import * as crypto from 'crypto';
@@ -10,6 +11,10 @@ describe('PaymentsService', () => {
   let service: PaymentsService;
   let prisma: any;
   let tx: any;
+
+  const mockAuditService = {
+    logAction: jest.fn().mockResolvedValue(undefined),
+  };
 
   beforeEach(async () => {
     tx = {
@@ -61,7 +66,11 @@ describe('PaymentsService', () => {
           useValue: {
             sendPaymentStatus: jest.fn().mockResolvedValue(undefined),
           }
-        }
+        },
+        {
+          provide: AuditService,
+          useValue: mockAuditService,
+        },
       ],
     }).compile();
 

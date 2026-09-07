@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Param, Body, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Body, UseGuards, Query, Request } from '@nestjs/common';
 import { ContentService } from './content.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -27,14 +27,14 @@ export class ContentController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.CONTENT_MANAGER)
   @Post()
-  upsertContent(@Body() dto: CreateSiteContentDto) {
-    return this.contentService.upsertContent(dto);
+  upsertContent(@Request() req: any, @Body() dto: CreateSiteContentDto) {
+    return this.contentService.upsertContent(dto, req.user?.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.CONTENT_MANAGER)
   @Delete(':key')
-  deleteContent(@Param('key') key: string) {
-    return this.contentService.deleteContent(key);
+  deleteContent(@Request() req: any, @Param('key') key: string) {
+    return this.contentService.deleteContent(key, req.user?.id);
   }
 }

@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DiscountsService } from './discounts.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 describe('DiscountsService', () => {
@@ -26,6 +27,10 @@ describe('DiscountsService', () => {
     applicableActivities: [],
     createdAt: new Date(),
     updatedAt: new Date(),
+  };
+
+  const mockAuditService = {
+    logAction: jest.fn().mockResolvedValue(undefined),
   };
 
   beforeEach(async () => {
@@ -55,6 +60,10 @@ describe('DiscountsService', () => {
         {
           provide: PrismaService,
           useValue: prisma,
+        },
+        {
+          provide: AuditService,
+          useValue: mockAuditService,
         },
       ],
     }).compile();

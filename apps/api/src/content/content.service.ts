@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { CreateSiteContentDto } from './dto/create-site-content.dto';
 
 @Injectable()
 export class ContentService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditService: AuditService,
+  ) {}
 
   /**
    * Helper to sanitize text and validate URLs against XSS / dangerous schemes
@@ -62,14 +66,16 @@ export class ContentService {
     return item;
   }
 
-  async upsertContent(dto: CreateSiteContentDto) {
+  async upsertContent(dto: CreateSiteContentDto, userId?: number) {
     const sanitized = this.sanitizeInput(dto);
     const key = sanitized.key.trim();
     const category = (sanitized.category || 'GENERAL').toUpperCase();
 
     const mediaId = sanitized.mediaId ? Number(sanitized.mediaId) : null;
 
-    return this.prisma.siteContent.upsert({
+    const existing = await this.prisma.siteContent.findUnique({ where: { key } });
+
+    const result = await this.prisma.siteContent.upsert({
       where: { key },
       update: {
         title: sanitized.title,
@@ -92,13 +98,55 @@ export class ContentService {
       },
       include: { media: true },
     });
+
+    const action = existing ? 'UPDATE' : 'CREATE';
+
+    await this.auditService.logAction({
+      action,
+      entity: 'CONTENT',
+      entityKey: key,
+      entityId: result.id,
+      userId,
+      description: `${action === 'CREATE' ? 'Created' : 'Updated'} website content block "${key}"`,
+      oldValue: existing
+        ? {
+            title: existing.title,
+            subtitle: existing.subtitle,
+            content: existing.content,
+            active: existing.active,
+          }
+        : null,
+      newValue: {
+        title: result.title,
+        subtitle: result.subtitle,
+        content: result.content,
+        active: result.active,
+      },
+    });
+
+    return result;
   }
 
-  async deleteContent(key: string) {
+  async deleteContent(key: string, userId?: number) {
     const normalizedKey = key.trim();
-    await this.getContentByKey(normalizedKey);
-    return this.prisma.siteContent.delete({
+    const existing = await this.getContentByKey(normalizedKey);
+    const deleted = await this.prisma.siteContent.delete({
       where: { key: normalizedKey },
     });
+
+    await this.auditService.logAction({
+      action: 'DELETE',
+      entity: 'CONTENT',
+      entityKey: normalizedKey,
+      entityId: existing.id,
+      userId,
+      description: `Deleted website content block "${normalizedKey}"`,
+      oldValue: {
+        title: existing.title,
+        category: existing.category,
+      },
+    });
+
+    return deleted;
   }
 }

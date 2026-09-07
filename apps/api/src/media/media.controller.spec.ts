@@ -57,9 +57,10 @@ describe('MediaController', () => {
       const dto = { url: 'https://test.com/a.jpg', category: 'FOOD' };
       mockMediaService.createMedia.mockResolvedValue({ id: 1, ...dto });
 
-      const result = await controller.createMedia(dto);
+      const req = { user: { id: 1 } };
+      const result = await controller.createMedia(req as any, dto);
 
-      expect(service.createMedia).toHaveBeenCalledWith(dto);
+      expect(service.createMedia).toHaveBeenCalledWith(dto, 1);
       expect(result).toEqual({ id: 1, ...dto });
     });
   });
@@ -68,9 +69,10 @@ describe('MediaController', () => {
     it('should call mediaService.bulkOperation', async () => {
       mockMediaService.bulkOperation.mockResolvedValue({ count: 2 });
 
-      const result = await controller.bulkOperation('ACTIVATE', [1, 2]);
+      const req = { user: { id: 1 } };
+      const result = await controller.bulkOperation(req as any, 'ACTIVATE', [1, 2]);
 
-      expect(service.bulkOperation).toHaveBeenCalledWith('ACTIVATE', [1, 2], undefined);
+      expect(service.bulkOperation).toHaveBeenCalledWith('ACTIVATE', [1, 2], undefined, 1);
       expect(result).toEqual({ count: 2 });
     });
   });

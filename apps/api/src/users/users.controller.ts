@@ -31,7 +31,8 @@ export class UsersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN)
   @Patch(':id/role')
-  updateUserRole(@Param('id') id: string, @Body('role') role: string) {
-    return this.usersService.updateUserRole(id, role);
+  updateUserRole(@Request() req: any, @Param('id') id: string, @Body('role') role: string) {
+    const actorUserId = req.user?.sub || req.user?.id;
+    return this.usersService.updateUserRole(id, role, actorUserId);
   }
 }

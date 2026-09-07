@@ -52,21 +52,24 @@ describe('FoodController', () => {
 
   it('should create a menu item', async () => {
     const dto = { name: 'New Thali' };
-    const result = await controller.createMenuItem(dto as any);
-    expect(serviceMock.createMenuItem).toHaveBeenCalledWith(dto);
+    const req = { user: { id: 1 } };
+    const result = await controller.createMenuItem(req as any, dto as any);
+    expect(serviceMock.createMenuItem).toHaveBeenCalledWith(dto, 1);
     expect(result).toEqual(sampleMenuItem);
   });
 
   it('should update a menu item', async () => {
     const dto = { name: 'Updated Thali' };
-    const result = await controller.updateMenuItem(1, dto as any);
-    expect(serviceMock.updateMenuItem).toHaveBeenCalledWith(1, dto);
+    const req = { user: { id: 1 } };
+    const result = await controller.updateMenuItem(req as any, 1, dto as any);
+    expect(serviceMock.updateMenuItem).toHaveBeenCalledWith(1, dto, 1);
     expect(result).toEqual(sampleMenuItem);
   });
 
   it('should delete a menu item', async () => {
-    const result = await controller.deleteMenuItem(1);
-    expect(serviceMock.deleteMenuItem).toHaveBeenCalledWith(1);
+    const req = { user: { id: 1 } };
+    const result = await controller.deleteMenuItem(req as any, 1);
+    expect(serviceMock.deleteMenuItem).toHaveBeenCalledWith(1, 1);
     expect(result).toEqual(sampleMenuItem);
   });
 });

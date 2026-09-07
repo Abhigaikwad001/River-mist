@@ -2,9 +2,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { QuotesService } from './quotes.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AuditService } from '../audit/audit.service';
 
 describe('QuotesService', () => {
   let service: QuotesService;
+
+  const mockAuditService = {
+    logAction: jest.fn().mockResolvedValue(undefined),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -31,7 +36,11 @@ describe('QuotesService', () => {
             sendQuoteCreated: jest.fn(),
             sendQuoteStatusUpdated: jest.fn(),
           }
-        }
+        },
+        {
+          provide: AuditService,
+          useValue: mockAuditService,
+        },
       ],
     }).compile();
 

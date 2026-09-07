@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Param, Post, Body, Patch, Delete, UseGuards, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Query, Param, Post, Body, Patch, Delete, UseGuards, BadRequestException, Request } from '@nestjs/common';
 import { PackagesService } from './packages.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -29,23 +29,23 @@ export class PackagesController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SUPER_ADMIN, Role.FINANCE_MANAGER, Role.EVENT_MANAGER, Role.BOOKING_MANAGER)
+  @Roles(Role.SUPER_ADMIN, Role.CONTENT_MANAGER, Role.FINANCE_MANAGER, Role.EVENT_MANAGER, Role.BOOKING_MANAGER)
   @Post()
-  createPackage(@Body() dto: CreatePackageDto) {
-    return this.packagesService.createPackage(dto);
+  createPackage(@Request() req: any, @Body() dto: CreatePackageDto) {
+    return this.packagesService.createPackage(dto, req.user?.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SUPER_ADMIN, Role.FINANCE_MANAGER, Role.EVENT_MANAGER, Role.BOOKING_MANAGER)
+  @Roles(Role.SUPER_ADMIN, Role.CONTENT_MANAGER, Role.FINANCE_MANAGER, Role.EVENT_MANAGER, Role.BOOKING_MANAGER)
   @Patch(':id')
-  updatePackage(@Param('id') id: string, @Body() dto: UpdatePackageDto) {
-    return this.packagesService.updatePackage(Number(id), dto);
+  updatePackage(@Request() req: any, @Param('id') id: string, @Body() dto: UpdatePackageDto) {
+    return this.packagesService.updatePackage(Number(id), dto, req.user?.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SUPER_ADMIN, Role.FINANCE_MANAGER, Role.EVENT_MANAGER, Role.BOOKING_MANAGER)
+  @Roles(Role.SUPER_ADMIN, Role.CONTENT_MANAGER, Role.FINANCE_MANAGER, Role.EVENT_MANAGER, Role.BOOKING_MANAGER)
   @Delete(':id')
-  deletePackage(@Param('id') id: string) {
-    return this.packagesService.deletePackage(Number(id));
+  deletePackage(@Request() req: any, @Param('id') id: string) {
+    return this.packagesService.deletePackage(Number(id), req.user?.id);
   }
 }

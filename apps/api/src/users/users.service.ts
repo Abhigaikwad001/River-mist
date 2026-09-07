@@ -1,12 +1,16 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { Role } from '@prisma/client';
 
 const VALID_ROLES = Object.values(Role);
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditService: AuditService,
+  ) {}
 
   async getAllUsers(role?: string) {
     const where: any = {};
@@ -30,7 +34,7 @@ export class UsersService {
     });
   }
 
-  async updateUserRole(id: string, role: string) {
+  async updateUserRole(id: string, role: string, actorUserId?: number) {
     if (!VALID_ROLES.includes(role as Role)) {
       throw new BadRequestException(`Invalid role: ${role}. Valid roles: ${VALID_ROLES.join(', ')}`);
     }
@@ -41,7 +45,8 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
     
-    return this.prisma.user.update({
+    const previousRole = user.role;
+    const updatedUser = await this.prisma.user.update({
       where: { id: userId },
       data: { role: role as Role },
       select: {
@@ -51,6 +56,19 @@ export class UsersService {
         role: true,
       }
     });
+
+    await this.auditService.logAction({
+      action: 'UPDATE',
+      entity: 'USER',
+      entityId: userId,
+      userId: actorUserId,
+      description: `Updated user role for ${user.email} from ${previousRole} to ${role}`,
+      oldValue: { role: previousRole },
+      newValue: { role },
+    });
+
+    return updatedUser;
   }
 }
+
 

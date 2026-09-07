@@ -21,6 +21,7 @@ import { MediaModule } from './media/media.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { DiscountsModule } from './discounts/discounts.module';
 import { ContentModule } from './content/content.module';
+import { AuditModule } from './audit/audit.module';
 
 @Module({
   imports: [
@@ -45,7 +46,8 @@ import { ContentModule } from './content/content.module';
     MediaModule,
     NotificationsModule,
     DiscountsModule,
-    ContentModule
+    ContentModule,
+    AuditModule
   ],
   controllers: [AppController],
   providers: [

@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { CreateDiscountDto } from './dto/create-discount.dto';
 import { UpdateDiscountDto } from './dto/update-discount.dto';
 import { ValidateDiscountDto } from './dto/validate-discount.dto';
@@ -8,7 +9,10 @@ export type OfferStatus = 'ACTIVE' | 'SCHEDULED' | 'EXPIRED' | 'DISABLED';
 
 @Injectable()
 export class DiscountsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditService: AuditService,
+  ) {}
 
   /**
    * Helper to derive dynamic offer status
@@ -171,7 +175,7 @@ export class DiscountsService {
     };
   }
 
-  async createDiscount(dto: CreateDiscountDto) {
+  async createDiscount(dto: CreateDiscountDto, userId?: number) {
     const codeNormalized = dto.code.trim().toUpperCase();
 
     const existing = await this.prisma.discount.findUnique({ where: { code: codeNormalized } });
@@ -184,7 +188,7 @@ export class DiscountsService {
       throw new BadRequestException('Percentage discount value must be between 1 and 100');
     }
 
-    return this.prisma.discount.create({
+    const created = await this.prisma.discount.create({
       data: {
         code: codeNormalized,
         name: dto.name || codeNormalized,
@@ -203,10 +207,26 @@ export class DiscountsService {
         displayOrder: dto.displayOrder ? Number(dto.displayOrder) : 0,
       },
     });
+
+    await this.auditService.logAction({
+      action: 'CREATE',
+      entity: 'DISCOUNT',
+      entityId: created.id,
+      userId,
+      description: `Created offer "${created.code}" (${created.type}: ${created.value})`,
+      newValue: {
+        code: created.code,
+        type: created.type,
+        value: created.value,
+        active: created.active,
+      },
+    });
+
+    return created;
   }
 
-  async updateDiscount(id: number, dto: UpdateDiscountDto) {
-    await this.getDiscountById(id);
+  async updateDiscount(id: number, dto: UpdateDiscountDto, userId?: number) {
+    const existing = await this.getDiscountById(id);
 
     const updateData: any = {};
     if (dto.code) updateData.code = dto.code.trim().toUpperCase();
@@ -231,14 +251,51 @@ export class DiscountsService {
       }
     }
 
-    return this.prisma.discount.update({
+    const updated = await this.prisma.discount.update({
       where: { id },
       data: updateData,
     });
+
+    await this.auditService.logAction({
+      action: 'UPDATE',
+      entity: 'DISCOUNT',
+      entityId: updated.id,
+      userId,
+      description: `Updated offer "${updated.code}"`,
+      oldValue: {
+        code: existing.code,
+        type: existing.type,
+        value: existing.value,
+        active: existing.active,
+      },
+      newValue: {
+        code: updated.code,
+        type: updated.type,
+        value: updated.value,
+        active: updated.active,
+      },
+    });
+
+    return updated;
   }
 
-  async deleteDiscount(id: number) {
-    await this.getDiscountById(id);
-    return this.prisma.discount.delete({ where: { id } });
+  async deleteDiscount(id: number, userId?: number) {
+    const existing = await this.getDiscountById(id);
+    const deleted = await this.prisma.discount.delete({ where: { id } });
+
+    await this.auditService.logAction({
+      action: 'DELETE',
+      entity: 'DISCOUNT',
+      entityId: id,
+      userId,
+      description: `Deleted offer "${existing.code}"`,
+      oldValue: {
+        code: existing.code,
+        type: existing.type,
+        value: existing.value,
+      },
+    });
+
+    return deleted;
   }
 }
