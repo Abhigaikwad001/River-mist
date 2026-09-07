@@ -118,9 +118,16 @@ export default function EventsPage() {
         </div>
 
         {loadingEvents ? (
-          <div className="flex flex-col items-center justify-center py-12 space-y-3">
-            <Loader2 className="w-8 h-8 text-[#D4AF37] animate-spin" />
-            <p className="text-[#1E3F20] font-serif text-sm">Loading upcoming events...</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {[1, 2, 3].map((n) => (
+              <div key={n} className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4 shadow-sm">
+                <div className="h-48 -mx-6 -mt-6 mb-4 skeleton-shimmer rounded-t-2xl" />
+                <div className="h-6 w-3/4 skeleton-shimmer rounded" />
+                <div className="h-4 w-1/2 skeleton-shimmer rounded" />
+                <div className="h-4 w-full skeleton-shimmer rounded" />
+                <div className="h-8 w-1/3 skeleton-shimmer rounded-xl mt-4" />
+              </div>
+            ))}
           </div>
         ) : scheduledEvents.length === 0 ? (
           <div className="bg-white rounded-2xl border border-[#D4AF37]/20 p-10 text-center shadow-sm max-w-2xl mx-auto">

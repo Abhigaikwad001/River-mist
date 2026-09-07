@@ -59,9 +59,28 @@ export default function PackagesPage() {
 
       <div className="container mx-auto px-4 -mt-16 relative z-20">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 space-y-4 bg-white rounded-[40px] shadow-2xl max-w-6xl mx-auto min-h-[300px]">
-            <Loader2 className="w-8 h-8 text-[#D4AF37] animate-spin" />
-            <p className="text-[#1E3F20] font-serif">Loading available packages...</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 max-w-6xl mx-auto">
+            {[1, 2].map((n) => (
+              <div key={n} className="rounded-[40px] bg-white p-10 shadow-xl border border-gray-100 space-y-6">
+                <div className="h-44 -mx-10 -mt-10 mb-4 skeleton-shimmer rounded-t-[40px]" />
+                <div className="h-6 w-32 skeleton-shimmer rounded-full" />
+                <div className="h-8 w-3/4 skeleton-shimmer rounded-lg" />
+                <div className="h-4 w-full skeleton-shimmer rounded-md" />
+                <div className="h-12 w-1/2 skeleton-shimmer rounded-xl" />
+                <div className="h-32 w-full skeleton-shimmer rounded-2xl" />
+              </div>
+            ))}
+          </div>
+        ) : packages.length === 0 ? (
+          <div className="text-center py-20 bg-white rounded-[40px] shadow-xl border border-[#D4AF37]/20 max-w-2xl mx-auto p-10">
+            <Sun className="w-12 h-12 text-[#D4AF37] mx-auto mb-4 opacity-70" />
+            <h3 className="text-3xl font-serif font-bold text-[#1E3F20] mb-2">Packages Coming Soon</h3>
+            <p className="text-gray-600 mb-6 font-light max-w-md mx-auto">
+              Our seasonal packages are currently being updated. Please contact us directly for customized day visits and event rates.
+            </p>
+            <Link href="/contact" className="inline-block bg-[#1E3F20] text-white px-8 py-3 rounded-none uppercase tracking-widest text-xs font-bold hover:bg-[#D4AF37] hover:text-[#1E3F20] transition-colors">
+              Contact River Mist
+            </Link>
           </div>
         ) : (
           <motion.div 

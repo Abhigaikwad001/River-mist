@@ -16,8 +16,10 @@ function SuccessContent() {
         <CheckCircle2 className="w-12 h-12 text-[#1E3F20]" />
       </div>
       
-      <h1 className="text-3xl font-serif font-bold text-gray-900 mb-2">Booking Confirmed!</h1>
-      <p className="text-gray-500 mb-8 font-light">Your payment was successful and your reservation is secured.</p>
+      <h1 className="text-3xl font-serif font-bold text-gray-900 mb-2">Booking Request Sent!</h1>
+      <p className="text-gray-600 mb-8 font-light text-sm">
+        Thank you! Your booking request has been dispatched. Our team will verify availability and contact you with payment details.
+      </p>
       
       {bookingId && (
         <div className="bg-[#FAF9F6] p-4 rounded-xl mb-8 border border-gray-100">

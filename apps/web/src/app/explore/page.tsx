@@ -44,9 +44,10 @@ export default function ExploreHubPage() {
         </div>
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 space-y-3">
-            <Loader2 className="w-8 h-8 text-[#D4AF37] animate-spin" />
-            <p className="text-[#1E3F20] font-serif text-sm">Loading resort activities...</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            {[1, 2, 3].map((n) => (
+              <div key={n} className="h-80 rounded-3xl skeleton-shimmer border border-gray-100 shadow-sm" />
+            ))}
           </div>
         ) : activities.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-3xl border border-[#D4AF37]/20 max-w-xl mx-auto p-8 shadow-sm">

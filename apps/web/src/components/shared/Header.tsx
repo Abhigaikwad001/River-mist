@@ -11,6 +11,11 @@ export function Header() {
 
   useEffect(() => {
     setMounted(true);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsMobileMenuOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const toggleLang = () => {
@@ -20,12 +25,12 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 bg-[#FAF9F6]/95 backdrop-blur-md border-b border-[#D4AF37]/30 shadow-sm">
       <div className="container mx-auto px-4 h-20 flex items-center justify-between">
-        <Link href="/" className="font-serif text-3xl font-bold text-[#1E3F20] tracking-tight">River Mist</Link>
+        <Link href="/" className="font-serif text-3xl font-bold text-[#1E3F20] tracking-tight hover:opacity-90 transition-opacity">River Mist</Link>
         <nav className="hidden lg:flex gap-6 items-center font-medium text-sm text-[#1E3F20]/80" aria-label="Main Navigation">
           
           {/* Explore Dropdown */}
           <div className="relative group py-6">
-            <Link href="/explore" className="flex items-center gap-1 hover:text-[#D4AF37] transition-colors uppercase tracking-widest text-xs">
+            <Link href="/explore" className="flex items-center gap-1 hover:text-[#D4AF37] transition-colors uppercase tracking-widest text-xs font-semibold focus-visible:ring-2 focus-visible:ring-[#D4AF37] rounded px-1">
               {mounted ? t('nav.explore') || 'Explore' : 'Explore'}
               <ChevronDown size={14} className="group-hover:rotate-180 transition-transform duration-200" />
             </Link>
@@ -39,7 +44,7 @@ export function Header() {
 
           {/* Stay & Visit Dropdown */}
           <div className="relative group py-6">
-            <button className="flex items-center gap-1 hover:text-[#D4AF37] transition-colors uppercase tracking-widest text-xs">
+            <button className="flex items-center gap-1 hover:text-[#D4AF37] transition-colors uppercase tracking-widest text-xs font-semibold focus-visible:ring-2 focus-visible:ring-[#D4AF37] rounded px-1">
               Stay & Visit
               <ChevronDown size={14} className="group-hover:rotate-180 transition-transform duration-200" />
             </button>
@@ -49,22 +54,22 @@ export function Header() {
             </div>
           </div>
 
-          <Link href="/weddings" className="hover:text-[#D4AF37] transition-colors uppercase tracking-widest text-xs">
+          <Link href="/weddings" className="hover:text-[#D4AF37] transition-colors uppercase tracking-widest text-xs font-semibold">
             {mounted ? t('nav.weddings') || 'Weddings' : 'Weddings'}
           </Link>
-          <Link href="/events" className="hover:text-[#D4AF37] transition-colors uppercase tracking-widest text-xs">
+          <Link href="/events" className="hover:text-[#D4AF37] transition-colors uppercase tracking-widest text-xs font-semibold">
             {mounted ? t('nav.events') || 'Events' : 'Events'}
           </Link>
-          <Link href="/food" className="hover:text-[#D4AF37] transition-colors uppercase tracking-widest text-xs">
+          <Link href="/food" className="hover:text-[#D4AF37] transition-colors uppercase tracking-widest text-xs font-semibold">
             {mounted ? t('nav.food') || 'Food' : 'Food'}
           </Link>
-          <Link href="/gallery" className="hover:text-[#D4AF37] transition-colors uppercase tracking-widest text-xs">
+          <Link href="/gallery" className="hover:text-[#D4AF37] transition-colors uppercase tracking-widest text-xs font-semibold">
             {mounted ? t('nav.gallery') || 'Gallery' : 'Gallery'}
           </Link>
-          <Link href="/about" className="hover:text-[#D4AF37] transition-colors uppercase tracking-widest text-xs">
+          <Link href="/about" className="hover:text-[#D4AF37] transition-colors uppercase tracking-widest text-xs font-semibold">
             About
           </Link>
-          <Link href="/contact" className="hover:text-[#D4AF37] transition-colors uppercase tracking-widest text-xs">
+          <Link href="/contact" className="hover:text-[#D4AF37] transition-colors uppercase tracking-widest text-xs font-semibold">
             Contact
           </Link>
         </nav>
@@ -72,8 +77,8 @@ export function Header() {
         <div className="flex items-center gap-4">
           <button 
             onClick={toggleLang}
-            aria-label="Toggle language"
-            className="flex items-center gap-2 text-xs font-medium text-[#1E3F20] uppercase tracking-widest hover:text-[#D4AF37] rounded transition-colors"
+            aria-label="Toggle language between English and Marathi"
+            className="flex items-center gap-2 text-xs font-medium text-[#1E3F20] uppercase tracking-widest hover:text-[#D4AF37] rounded transition-colors focus-visible:ring-2 focus-visible:ring-[#D4AF37] px-2 py-1"
           >
             <Globe size={16} />
             {mounted ? (language === 'en' ? 'MR' : 'EN') : 'EN'}
@@ -82,7 +87,7 @@ export function Header() {
           {mounted && (
             <Link 
               href={localStorage.getItem('token') ? "/profile" : "/auth/login"} 
-              className="text-[#1E3F20] hover:text-[#D4AF37] rounded transition-colors font-medium text-sm"
+              className="text-[#1E3F20] hover:text-[#D4AF37] rounded transition-colors font-medium text-sm p-1.5 focus-visible:ring-2 focus-visible:ring-[#D4AF37]"
               title={localStorage.getItem('token') ? "My Profile" : "Sign In"}
               aria-label={localStorage.getItem('token') ? "My Profile" : "Sign In"}
             >
@@ -90,52 +95,53 @@ export function Header() {
             </Link>
           )}
 
-          <Link href="/booking" className="hidden md:block border border-[#D4AF37] text-[#1E3F20] px-8 py-2.5 font-medium hover:bg-[#D4AF37] hover:text-white transition-all duration-300 uppercase tracking-widest text-xs">
+          <Link href="/booking" className="hidden md:block border border-[#D4AF37] text-[#1E3F20] px-8 py-2.5 font-medium hover:bg-[#D4AF37] hover:text-white transition-all duration-300 uppercase tracking-widest text-xs rounded-none shadow-sm hover:shadow-md">
             {mounted ? t('nav.book') || 'Book Now' : 'Book Now'}
           </Link>
 
           <button 
-            className="lg:hidden text-[#1E3F20] hover:text-[#D4AF37] rounded"
+            className="lg:hidden text-[#1E3F20] hover:text-[#D4AF37] rounded p-2 focus-visible:ring-2 focus-visible:ring-[#D4AF37]"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             aria-label="Toggle mobile menu"
             aria-expanded={isMobileMenuOpen}
+            aria-controls="mobile-navigation-menu"
           >
             {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
       </div>
 
-      {/* Mobile Menu */}
+      {/* Mobile Navigation Drawer */}
       {isMobileMenuOpen && (
-        <div className="lg:hidden absolute top-20 left-0 right-0 bg-[#FAF9F6] border-b border-[#D4AF37]/30 shadow-lg py-4 px-4 flex flex-col max-h-[80vh] overflow-y-auto">
-          <Link onClick={() => setIsMobileMenuOpen(false)} href="/" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold">Home</Link>
+        <div id="mobile-navigation-menu" className="lg:hidden absolute top-20 left-0 right-0 bg-[#FAF9F6] border-b border-[#D4AF37]/30 shadow-lg py-4 px-4 flex flex-col max-h-[80vh] overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
+          <Link onClick={() => setIsMobileMenuOpen(false)} href="/" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold hover:text-[#D4AF37]">Home</Link>
           
           <div className="px-4 py-3 border-b border-gray-100">
-            <Link onClick={() => setIsMobileMenuOpen(false)} href="/explore" className="text-[#1E3F20] uppercase tracking-widest text-xs font-bold block mb-2">Explore</Link>
+            <Link onClick={() => setIsMobileMenuOpen(false)} href="/explore" className="text-[#1E3F20] uppercase tracking-widest text-xs font-bold block mb-2 hover:text-[#D4AF37]">Explore</Link>
             <div className="pl-4 flex flex-col gap-3">
-              <Link onClick={() => setIsMobileMenuOpen(false)} href="/explore/adventure" className="text-gray-600 uppercase tracking-widest text-[10px] font-medium">Adventure</Link>
-              <Link onClick={() => setIsMobileMenuOpen(false)} href="/explore/aqua" className="text-gray-600 uppercase tracking-widest text-[10px] font-medium">Aqua</Link>
-              <Link onClick={() => setIsMobileMenuOpen(false)} href="/explore/farm" className="text-gray-600 uppercase tracking-widest text-[10px] font-medium">Farm</Link>
-              <Link onClick={() => setIsMobileMenuOpen(false)} href="/explore/riverside" className="text-gray-600 uppercase tracking-widest text-[10px] font-medium">Riverside</Link>
+              <Link onClick={() => setIsMobileMenuOpen(false)} href="/explore/adventure" className="text-gray-600 hover:text-[#D4AF37] uppercase tracking-widest text-[10px] font-medium">Adventure</Link>
+              <Link onClick={() => setIsMobileMenuOpen(false)} href="/explore/aqua" className="text-gray-600 hover:text-[#D4AF37] uppercase tracking-widest text-[10px] font-medium">Aqua</Link>
+              <Link onClick={() => setIsMobileMenuOpen(false)} href="/explore/farm" className="text-gray-600 hover:text-[#D4AF37] uppercase tracking-widest text-[10px] font-medium">Farm</Link>
+              <Link onClick={() => setIsMobileMenuOpen(false)} href="/explore/riverside" className="text-gray-600 hover:text-[#D4AF37] uppercase tracking-widest text-[10px] font-medium">Riverside</Link>
             </div>
           </div>
 
           <div className="px-4 py-3 border-b border-gray-100">
             <span className="text-[#1E3F20] uppercase tracking-widest text-xs font-bold block mb-2">Stay & Visit</span>
             <div className="pl-4 flex flex-col gap-3">
-              <Link onClick={() => setIsMobileMenuOpen(false)} href="/packages" className="text-gray-600 uppercase tracking-widest text-[10px] font-medium">Packages</Link>
-              <Link onClick={() => setIsMobileMenuOpen(false)} href="/booking" className="text-gray-600 uppercase tracking-widest text-[10px] font-medium">Day Visit / Booking</Link>
+              <Link onClick={() => setIsMobileMenuOpen(false)} href="/packages" className="text-gray-600 hover:text-[#D4AF37] uppercase tracking-widest text-[10px] font-medium">Packages</Link>
+              <Link onClick={() => setIsMobileMenuOpen(false)} href="/booking" className="text-gray-600 hover:text-[#D4AF37] uppercase tracking-widest text-[10px] font-medium">Day Visit / Booking</Link>
             </div>
           </div>
 
-          <Link onClick={() => setIsMobileMenuOpen(false)} href="/weddings" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold">{mounted ? t('nav.weddings') || 'Weddings' : 'Weddings'}</Link>
-          <Link onClick={() => setIsMobileMenuOpen(false)} href="/events" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold">{mounted ? t('nav.events') || 'Events' : 'Events'}</Link>
-          <Link onClick={() => setIsMobileMenuOpen(false)} href="/food" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold">{mounted ? t('nav.food') || 'Food' : 'Food'}</Link>
-          <Link onClick={() => setIsMobileMenuOpen(false)} href="/gallery" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold">{mounted ? t('nav.gallery') || 'Gallery' : 'Gallery'}</Link>
-          <Link onClick={() => setIsMobileMenuOpen(false)} href="/about" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold">About</Link>
-          <Link onClick={() => setIsMobileMenuOpen(false)} href="/contact" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold">Contact</Link>
+          <Link onClick={() => setIsMobileMenuOpen(false)} href="/weddings" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold hover:text-[#D4AF37]">{mounted ? t('nav.weddings') || 'Weddings' : 'Weddings'}</Link>
+          <Link onClick={() => setIsMobileMenuOpen(false)} href="/events" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold hover:text-[#D4AF37]">{mounted ? t('nav.events') || 'Events' : 'Events'}</Link>
+          <Link onClick={() => setIsMobileMenuOpen(false)} href="/food" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold hover:text-[#D4AF37]">{mounted ? t('nav.food') || 'Food' : 'Food'}</Link>
+          <Link onClick={() => setIsMobileMenuOpen(false)} href="/gallery" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold hover:text-[#D4AF37]">{mounted ? t('nav.gallery') || 'Gallery' : 'Gallery'}</Link>
+          <Link onClick={() => setIsMobileMenuOpen(false)} href="/about" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold hover:text-[#D4AF37]">About</Link>
+          <Link onClick={() => setIsMobileMenuOpen(false)} href="/contact" className="px-4 py-3 border-b border-gray-100 text-[#1E3F20] uppercase tracking-widest text-xs font-bold hover:text-[#D4AF37]">Contact</Link>
           
-          <Link onClick={() => setIsMobileMenuOpen(false)} href="/booking" className="mt-4 mx-4 bg-[#D4AF37] text-[#1E3F20] text-center py-4 uppercase tracking-widest text-xs font-bold shadow-lg rounded">{mounted ? t('nav.book') || 'Book Now' : 'Book Now'}</Link>
+          <Link onClick={() => setIsMobileMenuOpen(false)} href="/booking" className="mt-4 mx-4 bg-[#D4AF37] text-[#1E3F20] text-center py-4 uppercase tracking-widest text-xs font-bold shadow-lg rounded hover:bg-[#1E3F20] hover:text-white transition-colors">{mounted ? t('nav.book') || 'Book Now' : 'Book Now'}</Link>
         </div>
       )}
     </header>

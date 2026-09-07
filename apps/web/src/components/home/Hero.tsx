@@ -95,13 +95,21 @@ export function Hero() {
           {heroDescription}
         </p>
         
-        <a 
-          ref={btnRef}
-          href="/booking" 
-          className="inline-block bg-[#D4AF37] text-[#1E3F20] px-10 py-5 rounded-none text-lg font-bold hover:bg-white transition-all shadow-xl hover:shadow-2xl transform hover:-translate-y-1 uppercase tracking-widest"
-        >
-          Book Your Experience
-        </a>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-2">
+          <a 
+            ref={btnRef}
+            href="/booking" 
+            className="inline-block bg-[#D4AF37] text-[#1E3F20] px-10 py-4 font-bold hover:bg-white transition-all shadow-xl hover:shadow-2xl transform hover:-translate-y-0.5 uppercase tracking-widest text-sm"
+          >
+            Plan Your Visit
+          </a>
+          <a 
+            href="/explore" 
+            className="inline-block border border-white/60 text-white hover:border-[#D4AF37] hover:text-[#D4AF37] px-10 py-4 font-semibold transition-all backdrop-blur-sm uppercase tracking-widest text-sm"
+          >
+            Explore River Mist
+          </a>
+        </div>
       </div>
     </section>
   );

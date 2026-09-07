@@ -78,9 +78,19 @@ export default function FoodPage() {
       {/* 2. THALI SHOWCASE (Responsive Grid Layout) */}
       <section className="px-4 md:px-12 lg:px-20 pb-16 container mx-auto flex-1">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 space-y-4">
-            <Loader2 className="w-8 h-8 text-[#D4AF37] animate-spin" />
-            <p className="text-[#1E3F20] font-serif text-sm">Loading available thalis...</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
+            {[1, 2, 3].map((n) => (
+              <div key={n} className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4 shadow-sm">
+                <div className="h-52 -mx-6 -mt-6 mb-4 skeleton-shimmer rounded-t-2xl" />
+                <div className="h-6 w-3/4 skeleton-shimmer rounded" />
+                <div className="h-4 w-full skeleton-shimmer rounded" />
+                <div className="h-4 w-2/3 skeleton-shimmer rounded" />
+                <div className="flex gap-2 pt-2">
+                  <div className="h-5 w-16 skeleton-shimmer rounded-md" />
+                  <div className="h-5 w-16 skeleton-shimmer rounded-md" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : foodItems.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-2xl border border-[#D4AF37]/20 max-w-xl mx-auto p-8 shadow-sm">

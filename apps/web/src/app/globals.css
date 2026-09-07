@@ -18,6 +18,34 @@
 body {
   background: var(--background);
   color: var(--foreground);
+  overflow-x: hidden;
+}
+
+/* Accessible focus rings */
+*:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Skeleton loader shimmer animation */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(30, 63, 32, 0.06) 25%,
+    rgba(212, 175, 55, 0.15) 50%,
+    rgba(30, 63, 32, 0.06) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s infinite;
 }
 
 @layer utilities {
@@ -27,5 +55,17 @@ body {
     letter-spacing: 0.15em;
     font-size: 0.875rem;
     color: var(--color-accent);
+  }
+
+  .premium-card {
+    background-color: #ffffff;
+    border: 1px solid rgba(212, 175, 55, 0.2);
+    box-shadow: 0 4px 20px -2px rgba(30, 63, 32, 0.05);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .premium-card:hover {
+    box-shadow: 0 12px 30px -4px rgba(30, 63, 32, 0.12);
+    border-color: rgba(212, 175, 55, 0.4);
   }
 }
