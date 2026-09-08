@@ -120,10 +120,15 @@ async function main() {
 }
 
 main()
-  .catch((e) => {
+  .catch(async (e) => {
+    const isLocalhost = !process.env.DATABASE_URL || process.env.DATABASE_URL.includes('localhost') || process.env.DATABASE_URL.includes('127.0.0.1');
+    if ((e?.code === 'ECONNREFUSED' || e?.message?.includes('ECONNREFUSED')) && isLocalhost) {
+      console.warn('Skipping prod-seed: local database offline (connection refused to localhost).');
+      return;
+    }
     console.error(e);
     process.exit(1);
   })
   .finally(async () => {
-    await prisma.$disconnect();
+    await prisma.$disconnect().catch(() => {});
   });

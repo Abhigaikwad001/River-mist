@@ -18,10 +18,13 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
+        const hadToken = !!localStorage.getItem('token');
         localStorage.removeItem('token');
-        // Only redirect if we are not already on login/register pages
-        if (!window.location.pathname.startsWith('/auth/')) {
-          window.location.href = '/auth/login';
+        // Only redirect if user had an existing token that expired or is in the /admin area
+        if (hadToken || window.location.pathname.startsWith('/admin')) {
+          if (!window.location.pathname.startsWith('/auth/')) {
+            window.location.href = '/auth/login';
+          }
         }
       }
     }

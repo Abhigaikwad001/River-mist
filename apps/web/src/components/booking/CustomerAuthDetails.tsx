@@ -19,6 +19,13 @@ export function CustomerAuthDetails({ onNext, onBack }: { onNext: () => void, on
   useEffect(() => {
     // Check if user is logged in
     const checkAuth = async () => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      if (!token) {
+        setIsAuthenticated(false);
+        setLoading(false);
+        return;
+      }
+
       try {
         const res = await api.get('/users/me');
         if (res.data) {

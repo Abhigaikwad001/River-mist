@@ -1,4 +1,4 @@
-﻿# Dependencies
+# Dependencies
 node_modules/
 
 # Environment variables / secrets
@@ -15,6 +15,10 @@ dist/
 
 # Testing / coverage
 coverage/
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
 
 # Logs
 *.log
