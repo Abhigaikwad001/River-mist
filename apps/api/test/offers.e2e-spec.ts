@@ -39,19 +39,43 @@ describe('Offers & Discounts System (e2e)', () => {
 
     prisma = app.get<PrismaService>(PrismaService);
 
+    // Helper function for safe cleanup
+    const cleanupTestData = async () => {
+      const userBookings = await prisma.booking.findMany({
+        where: { user: { email: { in: [testUser.email, 'guest-offer@example.com'] } } },
+        select: { id: true },
+      });
+      const bookingIds = userBookings.map((b) => b.id);
+      if (bookingIds.length > 0) {
+        await prisma.notificationLog.deleteMany({
+          where: { bookingId: { in: bookingIds } },
+        });
+        await prisma.payment.deleteMany({
+          where: { bookingId: { in: bookingIds } },
+        });
+        await prisma.bookingActivity.deleteMany({
+          where: { bookingId: { in: bookingIds } },
+        });
+        await prisma.bookingResource.deleteMany({
+          where: { bookingId: { in: bookingIds } },
+        });
+        await prisma.booking.deleteMany({
+          where: { id: { in: bookingIds } },
+        });
+      }
+      await prisma.discount.deleteMany({
+        where: { code: { in: ['E2EMONSOON20', 'E2EFIXED500', 'E2EEXPIRED'] } },
+      });
+      await prisma.package.deleteMany({
+        where: { name: 'E2E Offer Package' },
+      });
+      await prisma.user.deleteMany({
+        where: { email: { in: [testUser.email, testAdmin.email] } },
+      });
+    };
+
     // Cleanup previous test data
-    await prisma.booking.deleteMany({
-      where: { user: { email: { in: [testUser.email, 'guest-offer@example.com'] } } },
-    });
-    await prisma.discount.deleteMany({
-      where: { code: { in: ['E2EMONSOON20', 'E2EFIXED500', 'E2EEXPIRED'] } },
-    });
-    await prisma.package.deleteMany({
-      where: { name: 'E2E Offer Package' },
-    });
-    await prisma.user.deleteMany({
-      where: { email: { in: [testUser.email, testAdmin.email] } },
-    });
+    await cleanupTestData();
 
     // Create admin user
     const salt = await bcrypt.genSalt(10);
@@ -82,10 +106,13 @@ describe('Offers & Discounts System (e2e)', () => {
       data: {
         name: 'E2E Offer Package',
         slug: 'e2e-offer-package',
+        description: 'E2E Offer Package Description',
+        experienceType: 'DAY_TOURISM',
         priceAdult: 2000,
         priceChild: 1000,
-        capacity: 50,
-        isActive: true,
+        minGuests: 1,
+        maxGuests: 50,
+        active: true,
       },
     });
     createdPackageId = pkg.id;
@@ -93,9 +120,28 @@ describe('Offers & Discounts System (e2e)', () => {
 
   afterAll(async () => {
     // Cleanup
-    await prisma.booking.deleteMany({
+    const userBookings = await prisma.booking.findMany({
       where: { user: { email: { in: [testUser.email, 'guest-offer@example.com'] } } },
+      select: { id: true },
     });
+    const bookingIds = userBookings.map((b) => b.id);
+    if (bookingIds.length > 0) {
+      await prisma.notificationLog.deleteMany({
+        where: { bookingId: { in: bookingIds } },
+      });
+      await prisma.payment.deleteMany({
+        where: { bookingId: { in: bookingIds } },
+      });
+      await prisma.bookingActivity.deleteMany({
+        where: { bookingId: { in: bookingIds } },
+      });
+      await prisma.bookingResource.deleteMany({
+        where: { bookingId: { in: bookingIds } },
+      });
+      await prisma.booking.deleteMany({
+        where: { id: { in: bookingIds } },
+      });
+    }
     await prisma.discount.deleteMany({
       where: { code: { in: ['E2EMONSOON20', 'E2EFIXED500', 'E2EEXPIRED'] } },
     });
