@@ -5,11 +5,13 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { AllExceptionsFilter } from './filters/all-exceptions.filter';
+import { validateEnvironment } from './config/env.validator';
 
 import * as express from 'express';
 import * as path from 'path';
 
 async function bootstrap() {
+  validateEnvironment();
   const app = await NestFactory.create(AppModule);
   
   app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));

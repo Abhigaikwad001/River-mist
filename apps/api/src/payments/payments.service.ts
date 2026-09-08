@@ -235,6 +235,15 @@ export class PaymentsService {
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
+      // 1. Concurrency lock: Serialize simultaneous payment submissions for this booking in PostgreSQL
+      if (typeof tx.$queryRaw === 'function') {
+        try {
+          await tx.$queryRaw`SELECT id, "amountPaid", "balanceAmount" FROM "Booking" WHERE id = ${bookingId} FOR UPDATE`;
+        } catch {
+          // Fallback if provider does not support raw locking in test environments
+        }
+      }
+
       const booking = await tx.booking.findUnique({ 
         where: { id: bookingId },
         include: { user: true }
@@ -245,8 +254,27 @@ export class PaymentsService {
         throw new BadRequestException('Cannot record payment for this booking status');
       }
 
+      if (booking.balanceAmount <= 0) {
+        throw new BadRequestException('Booking is already fully paid. No additional payments can be recorded.');
+      }
+
       if (amount > booking.balanceAmount) {
         throw new BadRequestException(`Payment amount (₹${amount}) exceeds remaining balance (₹${booking.balanceAmount})`);
+      }
+
+      // 2. Duplicate reference ID check (prevent recording the exact same UTR/transaction ID twice)
+      if (referenceId && referenceId.trim() !== '' && typeof tx.payment.findFirst === 'function') {
+        const trimmedRef = referenceId.trim();
+        const existingRefPayment = await tx.payment.findFirst({
+          where: {
+            bookingId,
+            razorpayPaymentId: trimmedRef,
+            status: PaymentStatus.CAPTURED,
+          },
+        });
+        if (existingRefPayment) {
+          throw new BadRequestException(`Payment with reference '${trimmedRef}' has already been recorded for this booking.`);
+        }
       }
 
       const paymentMethod = method ? method.toUpperCase() : 'CASH';

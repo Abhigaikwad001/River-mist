@@ -74,7 +74,8 @@ describe('BookingsService', () => {
         count: jest.fn().mockResolvedValue(0),
         create: jest.fn(),
         findMany: jest.fn(),
-        findUnique: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue(null),
+        findFirst: jest.fn().mockResolvedValue(null),
         update: jest.fn(),
       },
       package: {
@@ -88,6 +89,10 @@ describe('BookingsService', () => {
       },
       user: {
         findUnique: jest.fn().mockResolvedValue({ id: 10, email: 'guest@example.com', name: 'Guest' }),
+      },
+      auditLog: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({}),
       },
       $transaction: jest.fn().mockImplementation(async (callback) => {
         return await callback(tx);
@@ -502,6 +507,184 @@ describe('BookingsService', () => {
         // Booking availability remains successfully approved and advanced to payment pending
         expect(result.booking.status).toBe(BookingStatus.PAYMENT_PENDING);
         expect(result.whatsapp.success).toBe(false);
+      });
+    });
+
+    describe('Booking Idempotency & Concurrency Protection', () => {
+      const basePayload: any = {
+        date: '2026-10-15T10:00:00.000Z',
+        type: EventType.DAY_TOURISM,
+        packageId: 1,
+        headCountAdult: 2,
+        headCountChild: 0,
+      };
+
+      const mockPackage = {
+        id: 1,
+        name: 'Day Tourism Package',
+        slug: 'day-tourism-package',
+        minGuests: 1,
+        priceAdult: 1000,
+        priceChild: 500,
+      };
+
+      beforeEach(() => {
+        prisma.package.findUnique.mockResolvedValue(mockPackage);
+        prisma.resource.findMany.mockResolvedValue([
+          { id: 1, name: 'General Day Tourism', active: true },
+          { id: 2, name: 'Main Dining', active: true },
+          { id: 3, name: 'Parking', active: true },
+        ]);
+        prisma.booking.count.mockResolvedValue(0);
+        prisma.booking.findUnique.mockResolvedValue(null);
+      });
+
+      // A. same request submitted twice concurrently → one booking
+      it('Scenario A: same request submitted twice concurrently → returns single created booking without duplicate operations', async () => {
+        let createCallCount = 0;
+        tx.booking.create.mockImplementation(async (args: any) => {
+          createCallCount++;
+          // Simulate real async DB transaction delay
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          return {
+            id: 201,
+            ...args.data,
+          };
+        });
+
+        const req1 = service.createBooking({ ...basePayload, idempotencyKey: 'concurrent-key-abc' }, 10);
+        const req2 = service.createBooking({ ...basePayload, idempotencyKey: 'concurrent-key-abc' }, 10);
+
+        const [booking1, booking2] = await Promise.all([req1, req2]);
+
+        expect(createCallCount).toBe(1);
+        expect(tx.booking.create).toHaveBeenCalledTimes(1);
+        expect(booking1.id).toBe(201);
+        expect(booking2.id).toBe(201);
+        expect(booking1.bookingNumber).toBe('RM-2026-000001');
+        expect(booking2.bookingNumber).toBe('RM-2026-000001');
+      });
+
+      // B. same request retried → original result/idempotent behavior
+      it('Scenario B: same request retried sequentially → returns original booking idempotently without duplicate creation', async () => {
+        tx.booking.create.mockResolvedValue({
+          id: 301,
+          bookingNumber: 'RM-2026-000301',
+          totalAmount: 2000,
+          status: BookingStatus.REQUESTED,
+        });
+
+        const initial = await service.createBooking({ ...basePayload, idempotencyKey: 'retry-key-xyz' }, 10);
+        expect(tx.booking.create).toHaveBeenCalledTimes(1);
+        expect(initial.id).toBe(301);
+
+        // Retry same request with identical idempotency key
+        const retried = await service.createBooking({ ...basePayload, idempotencyKey: 'retry-key-xyz' }, 10);
+        expect(tx.booking.create).toHaveBeenCalledTimes(1); // Still exactly 1
+        expect(retried.id).toBe(301);
+        expect(retried.bookingNumber).toBe('RM-2026-000301');
+      });
+
+      // C. two legitimate separate bookings with identical business details → both allowed
+      it('Scenario C: two legitimate separate bookings with identical business details → both allowed', async () => {
+        let createdId = 401;
+        tx.booking.create.mockImplementation((args: any) => {
+          return Promise.resolve({
+            id: createdId++,
+            bookingNumber: `RM-2026-000${createdId}`,
+            ...args.data,
+          });
+        });
+
+        // Booking 1: Customer Alice makes booking 1
+        const booking1 = await service.createBooking(
+          { ...basePayload, idempotencyKey: 'alice-session-order-1' },
+          10,
+        );
+
+        // Booking 2: Customer Alice makes booking 2 with identical parameters in a new session
+        const booking2 = await service.createBooking(
+          { ...basePayload, idempotencyKey: 'alice-session-order-2' },
+          10,
+        );
+
+        expect(tx.booking.create).toHaveBeenCalledTimes(2);
+        expect(booking1.id).toBe(401);
+        expect(booking2.id).toBe(402);
+      });
+
+      // D. different customers → both allowed
+      it('Scenario D: different customers booking the same package and date → both allowed', async () => {
+        let createdId = 501;
+        tx.booking.create.mockImplementation((args: any) => {
+          return Promise.resolve({
+            id: createdId++,
+            bookingNumber: `RM-2026-000${createdId}`,
+            ...args.data,
+          });
+        });
+
+        // Customer 1
+        const bookingCust1 = await service.createBooking(
+          { ...basePayload, guestName: 'Customer One', idempotencyKey: 'cust-1-order-uuid' },
+          10,
+        );
+
+        // Customer 2 (same package, date, guests)
+        const bookingCust2 = await service.createBooking(
+          { ...basePayload, guestName: 'Customer Two', idempotencyKey: 'cust-2-order-uuid' },
+          20,
+        );
+
+        expect(tx.booking.create).toHaveBeenCalledTimes(2);
+        expect(bookingCust1.id).toBe(501);
+        expect(bookingCust2.id).toBe(502);
+      });
+
+      // E. existing discount usage behavior remains correct
+      it('Scenario E: discount code usage count incremented exactly once across duplicate submissions', async () => {
+        const mockDiscount = {
+          id: 5,
+          code: 'SUMMER20',
+          active: true,
+          type: 'PERCENTAGE',
+          value: 20,
+          usageCount: 1,
+          usageLimit: 10,
+          perCustomerLimit: 1,
+          applicablePackages: ['1', 'day-tourism-package'],
+        };
+
+        tx.$queryRaw.mockResolvedValue([mockDiscount]);
+        tx.booking.count.mockResolvedValue(0);
+        tx.booking.create.mockResolvedValue({
+          id: 601,
+          bookingNumber: 'RM-2026-000601',
+          discountCode: 'SUMMER20',
+          discountAmount: 400,
+          totalAmount: 1600,
+          status: BookingStatus.REQUESTED,
+        });
+
+        const payloadWithDiscount = {
+          ...basePayload,
+          discountCode: 'SUMMER20',
+          idempotencyKey: 'discount-idemp-key',
+        };
+
+        // Submit first time
+        const res1 = await service.createBooking(payloadWithDiscount, 10);
+        // Duplicate submission with same idempotency key
+        const res2 = await service.createBooking(payloadWithDiscount, 10);
+
+        expect(res1.id).toBe(601);
+        expect(res2.id).toBe(601);
+        // Discount usage count must be updated exactly ONCE
+        expect(tx.discount.update).toHaveBeenCalledTimes(1);
+        expect(tx.discount.update).toHaveBeenCalledWith({
+          where: { id: 5 },
+          data: { usageCount: { increment: 1 } },
+        });
       });
     });
   });

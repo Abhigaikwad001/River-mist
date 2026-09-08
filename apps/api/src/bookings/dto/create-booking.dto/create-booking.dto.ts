@@ -45,4 +45,8 @@ export class CreateBookingDto {
   @IsOptional()
   @IsString()
   guestPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  idempotencyKey?: string;
 }

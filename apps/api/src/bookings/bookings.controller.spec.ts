@@ -56,4 +56,31 @@ describe('BookingsController', () => {
     expect(service.getPaymentQr).toHaveBeenCalledWith(101);
     expect(result).toEqual({ amount: 3000, upiUri: 'upi://pay...' });
   });
+
+  it('should extract idempotency-key header and pass it to bookingsService.createBooking', async () => {
+    const service = (controller as any).bookingsService;
+    service.createBooking.mockResolvedValue({ id: 101, bookingNumber: 'RM-2026-000101' });
+
+    const body: any = { packageId: 1, date: '2026-10-15', headCountAdult: 2, headCountChild: 0 };
+    const req = { user: { id: 10 }, headers: { 'idempotency-key': 'test-header-uuid' } };
+
+    const result = await controller.createBooking(body, req);
+    expect(service.createBooking).toHaveBeenCalledWith(
+      { ...body, idempotencyKey: 'test-header-uuid' },
+      10,
+    );
+    expect(result).toEqual({ id: 101, bookingNumber: 'RM-2026-000101' });
+  });
+
+  it('should allow createBooking without idempotency key', async () => {
+    const service = (controller as any).bookingsService;
+    service.createBooking.mockResolvedValue({ id: 102, bookingNumber: 'RM-2026-000102' });
+
+    const body: any = { packageId: 1, date: '2026-10-15', headCountAdult: 2, headCountChild: 0 };
+    const req = { user: { id: 10 }, headers: {} };
+
+    const result = await controller.createBooking(body, req);
+    expect(service.createBooking).toHaveBeenCalledWith(body, 10);
+    expect(result).toEqual({ id: 102, bookingNumber: 'RM-2026-000102' });
+  });
 });

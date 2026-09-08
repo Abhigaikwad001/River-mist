@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import api from '@/lib/api';
+import api, { getApiErrorMessage } from '@/lib/api';
 import { format } from 'date-fns';
 import { IndianRupee, Plus, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 
@@ -9,6 +9,7 @@ export default function PaymentsPage() {
   const [payments, setPayments] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -28,14 +29,16 @@ export default function PaymentsPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
+      setFetchError(null);
       const [paymentsRes, bookingsRes] = await Promise.all([
         api.get('/payments'),
         api.get('/bookings')
       ]);
-      setPayments(paymentsRes.data);
-      setBookings(bookingsRes.data);
+      setPayments(paymentsRes.data || []);
+      setBookings(bookingsRes.data || []);
     } catch (err) {
       console.error('Failed to load payments or bookings:', err);
+      setFetchError(getApiErrorMessage(err, 'Failed to load payments or bookings from server.'));
     } finally {
       setLoading(false);
     }
@@ -109,6 +112,21 @@ export default function PaymentsPage() {
           </button>
         </div>
       </div>
+
+      {fetchError && (
+        <div className="mb-4 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-500" />
+            <span className="text-sm">{fetchError}</span>
+          </div>
+          <button
+            onClick={fetchData}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-100 text-red-800 rounded-lg text-xs font-semibold hover:bg-red-200 transition-colors"
+          >
+            <RefreshCw className="w-3.5 h-3.5" /> Retry
+          </button>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">

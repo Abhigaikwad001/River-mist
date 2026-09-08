@@ -20,7 +20,12 @@ export class BookingsController {
   createBooking(@Body() body: CreateBookingDto, @Request() req: any) {
     // If no user is authenticated, it will use a guest user internally
     const userId = req.user?.id;
-    return this.bookingsService.createBooking(body, userId);
+    const headerKey = req.headers?.['idempotency-key'] || req.headers?.['x-idempotency-key'];
+    const idempotencyKey = (headerKey || body.idempotencyKey)?.toString().trim();
+    return this.bookingsService.createBooking(
+      idempotencyKey ? { ...body, idempotencyKey } : body,
+      userId,
+    );
   }
 
   @ApiOperation({ summary: 'Get my bookings' })

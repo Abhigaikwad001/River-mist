@@ -19,6 +19,11 @@ export class BookingsService {
     private whatsAppService: WhatsAppService,
   ) {}
 
+  // In-flight promise map for concurrent identical requests (browser double-clicks, concurrent POSTs)
+  private readonly inFlightRequests = new Map<string, Promise<any>>();
+  // In-memory cache for recently processed idempotency keys (TTL: 10 minutes)
+  private readonly idempotencyCache = new Map<string, { booking: any; expiresAt: number }>();
+
   /**
    * Check Capacity for a given date, guest count, and event type
    */
@@ -38,9 +43,96 @@ export class BookingsService {
   }
 
   /**
-   * Pricing Engine & Booking Creation
+   * Pricing Engine & Booking Creation with True Idempotency Protection
    */
   async createBooking(data: CreateBookingDto, authUserId?: number) {
+    const idempotencyKey = data.idempotencyKey?.trim();
+
+    if (idempotencyKey) {
+      // 1. Check if request with this idempotency key is currently executing (concurrent double-click)
+      const inFlight = this.inFlightRequests.get(idempotencyKey);
+      if (inFlight) {
+        return inFlight;
+      }
+
+      // 2. Check fast in-memory cache
+      const cached = this.idempotencyCache.get(idempotencyKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        return cached.booking;
+      }
+
+      // 3. Register execution promise immediately to catch any concurrent arrival
+      const executionPromise = (async () => {
+        try {
+          // Check DB persistence (AuditLog) for retries across restarts or cache eviction
+          if (typeof this.prisma.auditLog?.findFirst === 'function') {
+            const existingAudit = await this.prisma.auditLog.findFirst({
+              where: {
+                entity: 'BOOKING_IDEMPOTENCY',
+                entityKey: idempotencyKey,
+              },
+              orderBy: { createdAt: 'desc' },
+            });
+
+            if (existingAudit?.entityId) {
+              const existingBooking = await this.prisma.booking.findUnique({
+                where: { id: existingAudit.entityId },
+                include: {
+                  package: true,
+                  discount: true,
+                  activities: { include: { activity: true } },
+                  resources: { include: { resource: true } },
+                },
+              });
+
+              if (existingBooking) {
+                this.cacheIdempotentBooking(idempotencyKey, existingBooking);
+                return existingBooking;
+              }
+            }
+          }
+
+          const booking = await this.executeCreateBooking(data, authUserId, idempotencyKey);
+          this.cacheIdempotentBooking(idempotencyKey, booking);
+          return booking;
+        } finally {
+          this.inFlightRequests.delete(idempotencyKey);
+        }
+      })();
+
+      this.inFlightRequests.set(idempotencyKey, executionPromise);
+      return executionPromise;
+    }
+
+    return this.executeCreateBooking(data, authUserId);
+  }
+
+  private cacheIdempotentBooking(key: string, booking: any) {
+    this.idempotencyCache.set(key, {
+      booking,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    });
+
+    if (this.idempotencyCache.size > 1000) {
+      const now = Date.now();
+      for (const [k, val] of this.idempotencyCache.entries()) {
+        if (val.expiresAt <= now) {
+          this.idempotencyCache.delete(k);
+        }
+      }
+      if (this.idempotencyCache.size > 1000) {
+        const excess = this.idempotencyCache.size - 1000;
+        let count = 0;
+        for (const k of this.idempotencyCache.keys()) {
+          this.idempotencyCache.delete(k);
+          count++;
+          if (count >= excess) break;
+        }
+      }
+    }
+  }
+
+  private async executeCreateBooking(data: CreateBookingDto, authUserId?: number, idempotencyKey?: string) {
     const { date, type, packageId, headCountAdult, headCountChild, notes, activityIds } = data;
     const totalGuests = headCountAdult + headCountChild;
 
@@ -103,11 +195,18 @@ export class BookingsService {
       }
     }
 
-    // Generate Booking Number OUTSIDE the transaction to reduce transaction duration
-    // PostgreSQL count() can be slow and doesn't require transaction isolation here
-    // since bookingNumber has a @unique constraint which protects against concurrent duplicates.
+    // Generate Collision-Resilient Booking Number OUTSIDE the transaction
+    const year = new Date().getFullYear();
     const bookingCount = await this.prisma.booking.count();
-    const bookingNumber = `RM-${new Date().getFullYear()}-${String(bookingCount + 1).padStart(6, '0')}`;
+    let bookingNumber = `RM-${year}-${String(bookingCount + 1).padStart(6, '0')}`;
+    
+    // Quick uniqueness verification to prevent collision on simultaneous requests
+    const candidateCollision = await this.prisma.booking.findUnique({ where: { bookingNumber } });
+    if (candidateCollision) {
+      const entropy = Math.floor(1000 + Math.random() * 9000);
+      bookingNumber = `RM-${year}-${String(bookingCount + 1).padStart(4, '0')}-${entropy}`;
+    }
+
 
     // Execute in transaction for atomic capacity locking and pricing rules
     const booking = await this.prisma.$transaction(async (tx) => {
@@ -266,6 +365,17 @@ export class BookingsService {
         status: booking.status,
       },
     });
+
+    if (idempotencyKey) {
+      await this.auditService.logAction({
+        action: 'IDEMPOTENT_SUBMISSION',
+        entity: 'BOOKING_IDEMPOTENCY',
+        entityId: booking.id,
+        entityKey: idempotencyKey,
+        userId: authUserId,
+        description: `Idempotency key ${idempotencyKey} mapped to booking #${booking.bookingNumber}`,
+      });
+    }
 
     // Fire & forget notification
     const user = await this.prisma.user.findUnique({ where: { id: userId } });

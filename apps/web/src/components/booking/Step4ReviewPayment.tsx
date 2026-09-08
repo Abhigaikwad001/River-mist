@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useBookingStore } from '@/store/useBookingStore';
-import { ShieldCheck, Loader2, ArrowRight, MessageSquare, CheckCircle, CreditCard, Tag, Check, X } from 'lucide-react';
-import api from '@/lib/api';
+import { ShieldCheck, Loader2, ArrowRight, MessageSquare, CheckCircle, CreditCard, Tag, Check, X, AlertCircle } from 'lucide-react';
+import api, { getApiErrorMessage } from '@/lib/api';
 import { buildWhatsAppMessageUrl } from '@/lib/config';
 import { format } from 'date-fns';
 
@@ -79,6 +79,14 @@ export function Step4ReviewPayment({ onBack }: { onBack: () => void }) {
     setPromoSuccess('');
   };
 
+  // Unique idempotency key per booking wizard attempt/mount
+  const idempotencyKeyRef = useRef<string>('');
+  if (!idempotencyKeyRef.current) {
+    idempotencyKeyRef.current = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `book_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  }
+
   // Helper to ensure booking is created only ONCE per session
   const getOrCreateBooking = async () => {
     if (createdBooking) return createdBooking;
@@ -97,20 +105,29 @@ export function Step4ReviewPayment({ onBack }: { onBack: () => void }) {
       guestName: customerDetails.name,
       guestEmail: customerDetails.email,
       guestPhone: customerDetails.phone,
+      idempotencyKey: idempotencyKeyRef.current,
     };
 
     if (appliedDiscount?.code || discountCode) {
       payload.discountCode = appliedDiscount?.code || discountCode;
     }
 
-    const bookingRes = await api.post('/bookings', payload);
+    const bookingRes = await api.post('/bookings', payload, {
+      headers: {
+        'Idempotency-Key': idempotencyKeyRef.current,
+      },
+    });
 
     setCreatedBooking(bookingRes.data);
     return bookingRes.data;
   };
 
+  const isSubmittingRef = useRef(false);
+
   const handleWhatsAppBooking = async () => {
+    if (isSubmittingRef.current) return;
     try {
+      isSubmittingRef.current = true;
       setLoading(true);
       setError('');
 
@@ -135,14 +152,17 @@ export function Step4ReviewPayment({ onBack }: { onBack: () => void }) {
       setIsSubmitted(true);
     } catch (err: any) {
       console.error('WhatsApp booking error:', err);
-      setError(err.response?.data?.message || err.message || 'Failed to process booking request');
+      setError(getApiErrorMessage(err, 'Failed to process booking request. Please try again.'));
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 
   const handleRazorpayCheckout = async () => {
+    if (isSubmittingRef.current) return;
     try {
+      isSubmittingRef.current = true;
       setLoading(true);
       setError('');
 
@@ -164,6 +184,7 @@ export function Step4ReviewPayment({ onBack }: { onBack: () => void }) {
       }
 
       setLoading(false);
+      isSubmittingRef.current = false;
 
       const options = {
         key: key,
@@ -183,7 +204,7 @@ export function Step4ReviewPayment({ onBack }: { onBack: () => void }) {
             reset();
             window.location.href = `/booking/success?bookingId=${booking.id}`;
           } catch (err) {
-            setError('Payment verification failed. Please contact support.');
+            setError(getApiErrorMessage(err, 'Payment verification failed. Please contact support.'));
             setLoading(false);
           }
         },
@@ -199,14 +220,15 @@ export function Step4ReviewPayment({ onBack }: { onBack: () => void }) {
 
       const rzp = new (window as any).Razorpay(options);
       rzp.on('payment.failed', function (response: any) {
-        setError('Payment failed: ' + response.error.description);
+        setError('Payment failed: ' + (response.error?.description || 'Transaction declined'));
         setLoading(false);
       });
       rzp.open();
     } catch (err: any) {
       console.error(err);
-      setError(err.response?.data?.message || 'Failed to initialize checkout');
+      setError(getApiErrorMessage(err, 'Failed to initialize checkout. Please try again.'));
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 

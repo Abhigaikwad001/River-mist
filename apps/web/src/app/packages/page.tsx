@@ -1,26 +1,34 @@
 "use client";
 
-import { Check, Sun, Leaf, Utensils, Loader2, Sparkles } from 'lucide-react';
+import { Check, Sun, Leaf, Utensils, Loader2, Sparkles, AlertCircle, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion, Variants } from 'framer-motion';
 import { useState, useEffect } from 'react';
-import api from '@/lib/api';
+import api, { getApiErrorMessage } from '@/lib/api';
 
 export default function PackagesPage() {
   const [packages, setPackages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchPackages = () => {
+    setLoading(true);
+    setError(null);
     api.get('/packages')
       .then(res => {
-        setPackages(res.data);
+        setPackages(res.data || []);
         setLoading(false);
       })
       .catch(err => {
-        console.error(err);
+        console.error('Failed to load packages:', err);
+        setError(getApiErrorMessage(err, 'Unable to load packages right now. Our servers may be waking up.'));
         setLoading(false);
       });
+  };
+
+  useEffect(() => {
+    fetchPackages();
   }, []);
 
   const fadeUp: Variants = {
@@ -70,6 +78,23 @@ export default function PackagesPage() {
                 <div className="h-32 w-full skeleton-shimmer rounded-2xl" />
               </div>
             ))}
+          </div>
+        ) : error ? (
+          <div className="text-center py-16 bg-white rounded-[40px] shadow-xl border border-red-100 max-w-2xl mx-auto p-10">
+            <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4 opacity-80" />
+            <h3 className="text-2xl font-serif font-bold text-[#1E3F20] mb-2">Service Temporarily Unavailable</h3>
+            <p className="text-gray-600 mb-6 font-light max-w-md mx-auto">{error}</p>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={fetchPackages}
+                className="inline-flex items-center gap-2 bg-[#1E3F20] text-white px-6 py-3 rounded uppercase tracking-widest text-xs font-bold hover:bg-[#2a522c] transition-colors"
+              >
+                <RefreshCw size={14} /> Retry
+              </button>
+              <Link href="/contact" className="inline-block bg-[#D4AF37] text-[#1E3F20] px-6 py-3 rounded uppercase tracking-widest text-xs font-bold hover:bg-[#b5952f] hover:text-white transition-colors">
+                Contact Resort
+              </Link>
+            </div>
           </div>
         ) : packages.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-[40px] shadow-xl border border-[#D4AF37]/20 max-w-2xl mx-auto p-10">

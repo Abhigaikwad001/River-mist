@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
@@ -23,6 +23,8 @@ import { DiscountsModule } from './discounts/discounts.module';
 import { ContentModule } from './content/content.module';
 import { AuditModule } from './audit/audit.module';
 import { WhatsAppModule } from './whatsapp/whatsapp.module';
+import { HealthModule } from './health/health.module';
+import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
 @Module({
   imports: [
@@ -49,7 +51,8 @@ import { WhatsAppModule } from './whatsapp/whatsapp.module';
     DiscountsModule,
     ContentModule,
     AuditModule,
-    WhatsAppModule
+    WhatsAppModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [
@@ -60,4 +63,9 @@ import { WhatsAppModule } from './whatsapp/whatsapp.module';
     }
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestIdMiddleware).forRoutes('*');
+  }
+}
+

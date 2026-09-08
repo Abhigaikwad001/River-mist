@@ -6,12 +6,13 @@ import {
   QrCode, Send, MessageSquare, ExternalLink, 
   Copy, CheckCircle2, AlertCircle, RefreshCw 
 } from 'lucide-react';
-import api from '@/lib/api';
+import api, { getApiErrorMessage } from '@/lib/api';
 
 export default function BookingsManagement() {
   const [activeTab, setActiveTab] = useState('ALL');
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   
   // Payment Modal State
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -43,10 +44,12 @@ export default function BookingsManagement() {
   const fetchBookings = async () => {
     try {
       setLoading(true);
+      setFetchError(null);
       const res = await api.get('/bookings');
-      setBookings(res.data);
+      setBookings(res.data || []);
     } catch (err) {
       console.error('Failed to fetch bookings:', err);
+      setFetchError(getApiErrorMessage(err, 'Failed to fetch bookings from server.'));
     } finally {
       setLoading(false);
     }
@@ -211,6 +214,21 @@ export default function BookingsManagement() {
           ))}
         </div>
       </div>
+
+      {fetchError && (
+        <div className="mb-4 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-500" />
+            <span className="text-sm">{fetchError}</span>
+          </div>
+          <button
+            onClick={fetchBookings}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-100 text-red-800 rounded-lg text-xs font-semibold hover:bg-red-200 transition-colors"
+          >
+            <RefreshCw className="w-3.5 h-3.5" /> Retry
+          </button>
+        </div>
+      )}
 
       <div className="bg-white flex-1 rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
         <div className="overflow-x-auto">
