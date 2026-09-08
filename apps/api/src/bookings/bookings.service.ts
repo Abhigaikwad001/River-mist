@@ -5,6 +5,8 @@ import { BookingStatus, PaymentStatus, EventType } from '@prisma/client';
 import { CreateBookingDto } from './dto/create-booking.dto/create-booking.dto';
 import { CapacityService } from '../capacity/capacity.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { UpiPaymentQrService } from '../payments/qr/upi-payment-qr.service';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
 
 @Injectable()
 export class BookingsService {
@@ -13,6 +15,8 @@ export class BookingsService {
     private capacityService: CapacityService,
     private notificationsService: NotificationsService,
     private auditService: AuditService,
+    private upiPaymentQrService: UpiPaymentQrService,
+    private whatsAppService: WhatsAppService,
   ) {}
 
   /**
@@ -400,5 +404,203 @@ export class BookingsService {
       throw new BadRequestException(`Booking ${id} not found`);
     }
     return booking;
+  }
+
+  /**
+   * Retrieves or generates the authoritative payment QR details for a booking.
+   */
+  async getPaymentQr(bookingId: number) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { package: true, user: true },
+    });
+
+    if (!booking) {
+      throw new BadRequestException(`Booking #${bookingId} not found`);
+    }
+
+    return this.upiPaymentQrService.generatePaymentRequest(booking);
+  }
+
+  /**
+   * Sends payment instructions and QR code via official WhatsApp (or wa.me fallback)
+   * based purely on authoritative server-side calculations.
+   */
+  async sendPaymentRequest(bookingId: number, actorUserId?: number, force?: boolean) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { package: true, user: true },
+    });
+
+    if (!booking) {
+      throw new BadRequestException(`Booking #${bookingId} not found`);
+    }
+
+    if (booking.status === BookingStatus.CANCELLED || booking.status === BookingStatus.REJECTED) {
+      throw new BadRequestException(`Cannot request payment for a ${booking.status.toLowerCase()} booking.`);
+    }
+
+    // 1. Authoritative calculation & QR generation
+    const paymentRequest = await this.upiPaymentQrService.generatePaymentRequest(booking);
+
+    // 2. State transition: If APPROVED, advance to PAYMENT_PENDING
+    let currentStatus = booking.status;
+    if (currentStatus === BookingStatus.APPROVED) {
+      await this.prisma.booking.update({
+        where: { id: bookingId },
+        data: { status: BookingStatus.PAYMENT_PENDING },
+      });
+      currentStatus = BookingStatus.PAYMENT_PENDING;
+
+      await this.auditService.logAction({
+        action: 'STATUS_CHANGE',
+        entity: 'BOOKING',
+        entityId: booking.id,
+        entityKey: booking.bookingNumber,
+        userId: actorUserId,
+        description: `Booking #${booking.bookingNumber} transitioned from APPROVED to PAYMENT_PENDING on payment request`,
+        oldValue: { status: BookingStatus.APPROVED },
+        newValue: { status: BookingStatus.PAYMENT_PENDING },
+      });
+    }
+
+    // 3. Dispatch via WhatsApp
+    const whatsappResult = await this.whatsAppService.sendPaymentRequestWithQr({
+      booking,
+      user: booking.user,
+      amountRequested: paymentRequest.calculation.amountRequested,
+      upiId: paymentRequest.upiId,
+      payeeName: paymentRequest.payeeName,
+      upiUri: paymentRequest.upiUri,
+      qrBuffer: paymentRequest.qrBuffer,
+      qrDataUrl: paymentRequest.qrDataUrl,
+      actorUserId,
+      force,
+    });
+
+    // 4. Audit payment request dispatch
+    await this.auditService.logAction({
+      action: 'PAYMENT_REQUEST_SENT',
+      entity: 'BOOKING',
+      entityId: booking.id,
+      entityKey: booking.bookingNumber,
+      userId: actorUserId,
+      description: `Dispatched payment request of ₹${paymentRequest.calculation.amountRequested} for booking #${booking.bookingNumber} to ${booking.user?.phone || 'business desk'}`,
+      newValue: {
+        amountRequested: paymentRequest.calculation.amountRequested,
+        upiId: paymentRequest.upiId,
+        upiUri: paymentRequest.upiUri,
+        duplicateSuppressed: whatsappResult.duplicateSuppressed || false,
+        whatsappSuccess: whatsappResult.success,
+      },
+    });
+
+    return {
+      success: true,
+      bookingId: booking.id,
+      bookingNumber: booking.bookingNumber,
+      status: currentStatus,
+      calculation: paymentRequest.calculation,
+      upiId: paymentRequest.upiId,
+      payeeName: paymentRequest.payeeName,
+      upiUri: paymentRequest.upiUri,
+      qrDataUrl: paymentRequest.qrDataUrl,
+      whatsapp: whatsappResult,
+    };
+  }
+
+  /**
+   * Confirms booking availability (Step 1).
+   * Transitions REQUESTED or UNDER_REVIEW to APPROVED.
+   * Emits audit log and dispatches approval notification WITHOUT requesting payment.
+   */
+  async confirmAvailability(bookingId: number, actorUserId?: number) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { package: true, user: true },
+    });
+
+    if (!booking) {
+      throw new BadRequestException(`Booking #${bookingId} not found`);
+    }
+
+    if (booking.status !== BookingStatus.REQUESTED && booking.status !== BookingStatus.UNDER_REVIEW) {
+      throw new BadRequestException(`Cannot confirm availability for booking #${booking.bookingNumber} with status ${booking.status}`);
+    }
+
+    const updatedBooking = await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: { status: BookingStatus.APPROVED },
+      include: { package: true, user: true },
+    });
+
+    await this.auditService.logAction({
+      action: 'CONFIRM_AVAILABILITY',
+      entity: 'BOOKING',
+      entityId: booking.id,
+      entityKey: booking.bookingNumber,
+      userId: actorUserId,
+      description: `Availability confirmed for booking #${booking.bookingNumber} (${booking.status} → APPROVED)`,
+      oldValue: { status: booking.status },
+      newValue: { status: BookingStatus.APPROVED },
+    });
+
+    // Notify customer about approval (fire & forget)
+    if (updatedBooking.user?.email) {
+      this.notificationsService.sendBookingStatusUpdated(
+        updatedBooking.id,
+        updatedBooking.user.email,
+        updatedBooking.user.name,
+        updatedBooking.bookingNumber,
+        BookingStatus.APPROVED
+      ).catch((err: unknown) => console.error('Failed to dispatch status notification:', err));
+    }
+
+    return updatedBooking;
+  }
+
+  /**
+   * Confirms availability and sends the exact-amount payment QR in a single staff action.
+   */
+  async confirmAvailabilityAndRequestPayment(bookingId: number, actorUserId?: number, force?: boolean) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { package: true, user: true },
+    });
+
+    if (!booking) {
+      throw new BadRequestException(`Booking #${bookingId} not found`);
+    }
+
+    // 1. Confirm Availability if currently REQUESTED or UNDER_REVIEW
+    if (booking.status === BookingStatus.REQUESTED || booking.status === BookingStatus.UNDER_REVIEW) {
+      await this.prisma.booking.update({
+        where: { id: bookingId },
+        data: { status: BookingStatus.APPROVED },
+      });
+
+      await this.auditService.logAction({
+        action: 'CONFIRM_AVAILABILITY',
+        entity: 'BOOKING',
+        entityId: booking.id,
+        entityKey: booking.bookingNumber,
+        userId: actorUserId,
+        description: `Availability confirmed for booking #${booking.bookingNumber} (${booking.status} → APPROVED)`,
+        oldValue: { status: booking.status },
+        newValue: { status: BookingStatus.APPROVED },
+      });
+    }
+
+    // 2. Trigger Payment Request with exact authoritative amount
+    const paymentResult = await this.sendPaymentRequest(bookingId, actorUserId, force);
+
+    return {
+      ...paymentResult,
+      booking: {
+        id: booking.id,
+        bookingNumber: booking.bookingNumber,
+        status: paymentResult.status,
+      },
+    };
   }
 }

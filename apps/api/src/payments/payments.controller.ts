@@ -38,13 +38,17 @@ export class PaymentsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.FINANCE_MANAGER, Role.BOOKING_MANAGER)
   @Post('manual')
-  recordManualPayment(@Body(new ValidationPipe({ whitelist: true, transform: true })) body: RecordManualPaymentDto) {
+  recordManualPayment(
+    @Request() req: any,
+    @Body(new ValidationPipe({ whitelist: true, transform: true })) body: RecordManualPaymentDto,
+  ) {
     return this.paymentsService.recordManualPayment(
       body.bookingId, 
       body.amount, 
       body.method, 
       body.referenceId, 
-      body.notes
+      body.notes,
+      req.user?.id,
     );
   }
 

@@ -263,11 +263,12 @@ export class WhatsAppService {
 
   async notifyPaymentInstructions(booking: any, user: { name: string; email?: string; phone?: string | null }) {
     if (!user.phone) return;
+    const dateStr = booking.date instanceof Date ? booking.date.toISOString().split('T')[0] : String(booking.date);
     const context: BookingMessageContext = {
       bookingNumber: booking.bookingNumber,
       customerName: user.name || 'Valued Guest',
       packageName: booking.package?.name || 'River Mist Experience',
-      dateStr: String(booking.date),
+      dateStr,
       headCountAdult: booking.headCountAdult || 1,
       headCountChild: booking.headCountChild || 0,
       totalAmount: booking.totalAmount || 0,
@@ -281,6 +282,256 @@ export class WhatsAppService {
       context,
       bookingId: booking.id,
     });
+  }
+
+  /**
+   * Dispatches an exact-amount payment request with dynamically generated in-memory QR code.
+   * Includes idempotency protection to prevent duplicate customer notifications.
+   */
+  async sendPaymentRequestWithQr(params: {
+    booking: any;
+    user?: { name?: string; email?: string; phone?: string | null };
+    customer?: { name?: string; email?: string; phone?: string | null };
+    amountRequested: number;
+    upiId?: string;
+    payeeName?: string;
+    upiUri: string;
+    qrBuffer: Buffer;
+    qrDataUrl?: string;
+    actorUserId?: number;
+    force?: boolean;
+  }): Promise<{
+    success: boolean;
+    status?: string;
+    duplicateSuppressed?: boolean;
+    mediaId?: string;
+    messageId?: string;
+    fallbackUrl?: string;
+    qrDataUrl?: string;
+    upiUri: string;
+    amountRequested: number;
+  }> {
+    const userObj = params.user || params.customer || {};
+    const rawRecipient = userObj.phone || this.config.businessPhoneNumber;
+    const recipient = normalizePhoneNumber(rawRecipient);
+    const dateStr =
+      params.booking.date instanceof Date
+        ? params.booking.date.toISOString().split('T')[0]
+        : String(params.booking.date);
+
+    const context: BookingMessageContext = {
+      bookingNumber: params.booking.bookingNumber,
+      customerName: userObj.name || 'Valued Guest',
+      customerPhone: userObj.phone || undefined,
+      packageName: params.booking.package?.name || 'River Mist Experience',
+      dateStr,
+      headCountAdult: params.booking.headCountAdult || 1,
+      headCountChild: params.booking.headCountChild || 0,
+      totalAmount: params.booking.totalAmount || 0,
+      amountPaid: params.booking.amountPaid || 0,
+      advanceRequired: params.booking.advanceRequired || 0,
+      balanceAmount: params.booking.balanceAmount || 0,
+      amountRequested: params.amountRequested,
+      upiId: params.upiId,
+      payeeName: params.payeeName,
+      upiUri: params.upiUri,
+    };
+
+    const textCaption = this.messageBuilder.buildTextBody(WhatsAppTemplateType.PAYMENT_INSTRUCTIONS, context);
+    const fallbackUrl = `https://wa.me/${recipient}?text=${encodeURIComponent(textCaption)}`;
+
+    // 1. Idempotency Guard: Suppress identical payment requests within 5 minutes
+    if (!params.force) {
+      try {
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+        const recentLog = await this.prisma.notificationLog.findFirst({
+          where: {
+            bookingId: params.booking.id,
+            type: 'WHATSAPP',
+            recipient,
+            status: 'SENT',
+            createdAt: { gte: fiveMinutesAgo },
+            content: { contains: `₹${params.amountRequested.toLocaleString('en-IN')}` },
+          },
+        });
+
+        if (recentLog) {
+          this.logger.log(
+            `Suppressed duplicate payment request for booking #${params.booking.bookingNumber} (₹${params.amountRequested}) to ${recipient}`,
+          );
+          const extractedMessageId =
+            (recentLog as any).providerMessageId ||
+            (recentLog.subject?.startsWith('WAMID')
+              ? recentLog.subject.replace(/^WAMID(_MEDIA|_TEXT_FALLBACK)?:\s*/, '')
+              : undefined);
+
+          return {
+            success: true,
+            status: 'ALREADY_SENT',
+            duplicateSuppressed: true,
+            messageId: extractedMessageId,
+            fallbackUrl,
+            qrDataUrl: params.qrDataUrl,
+            upiUri: params.upiUri,
+            amountRequested: params.amountRequested,
+          };
+        }
+      } catch (checkErr: any) {
+        this.logger.warn(`Idempotency check skipped due to error: ${checkErr.message}`);
+      }
+    }
+
+    // 2. Create NotificationLog entry
+    let logId: number | undefined;
+    try {
+      const log = await this.prisma.notificationLog.create({
+        data: {
+          type: 'WHATSAPP',
+          recipient,
+          subject: `PAYMENT_REQUEST: ₹${params.amountRequested}`,
+          content: textCaption,
+          status: 'PENDING',
+          bookingId: params.booking.id,
+        },
+      });
+      logId = log.id;
+    } catch (dbErr: any) {
+      this.logger.error(`Failed to record NotificationLog for payment QR: ${dbErr.message}`);
+    }
+
+    const canUseCloudApi =
+      (this.config.mode === 'CLOUD_API' || this.config.mode === 'HYBRID') && this.isCloudApiConfigured();
+
+    if (!canUseCloudApi) {
+      if (logId) {
+        await this.prisma.notificationLog
+          .update({
+            where: { id: logId },
+            data: {
+              status: 'SENT',
+              subject: `CLICK_TO_CHAT_READY: PAYMENT_REQUEST`,
+            },
+          })
+          .catch(() => {});
+      }
+      return {
+        success: true,
+        status: 'FALLBACK_GENERATED',
+        fallbackUrl,
+        qrDataUrl: params.qrDataUrl,
+        upiUri: params.upiUri,
+        amountRequested: params.amountRequested,
+      };
+    }
+
+    // 3. Dispatch via Meta WhatsApp Cloud API with In-Memory Media Upload
+    try {
+      // Step A: Upload QR buffer directly in-memory to Meta Media Endpoint
+      const uploadRes = await this.client.uploadMedia(
+        this.config.apiVersion,
+        this.config.phoneNumberId!,
+        this.config.cloudApiToken!,
+        params.qrBuffer,
+        'image/png',
+        `rivermist-${params.booking.bookingNumber}-qr.png`,
+      );
+
+      // Step B: Send official Image message with payment caption
+      const msgRes = await this.client.sendImageMessage(
+        this.config.apiVersion,
+        this.config.phoneNumberId!,
+        this.config.cloudApiToken!,
+        recipient,
+        uploadRes.id,
+        textCaption,
+      );
+
+      const messageId = msgRes.messages?.[0]?.id;
+      if (logId) {
+        await this.prisma.notificationLog
+          .update({
+            where: { id: logId },
+            data: {
+              status: 'SENT',
+              subject: messageId ? `WAMID_MEDIA: ${messageId}` : `WHATSAPP: PAYMENT_REQUEST`,
+            },
+          })
+          .catch(() => {});
+      }
+
+      return {
+        success: true,
+        status: 'SENT',
+        mediaId: uploadRes.id,
+        messageId,
+        fallbackUrl,
+        qrDataUrl: params.qrDataUrl,
+        upiUri: params.upiUri,
+        amountRequested: params.amountRequested,
+      };
+    } catch (err: any) {
+      const sanitizedError = this.client.sanitizeSecret(err.message || 'WhatsApp Cloud API Media Error');
+      this.logger.warn(`Failed to send WhatsApp payment QR to ${recipient}: ${sanitizedError}`);
+
+      // Graceful fallback: Attempt sending full payment instructions as a WhatsApp text message
+      try {
+        const textMsgRes = await this.client.sendMessage(
+          this.config.apiVersion,
+          this.config.phoneNumberId!,
+          this.config.cloudApiToken!,
+          {
+            to: recipient,
+            type: 'text',
+            text: { body: textCaption },
+          },
+        );
+
+        const textMessageId = textMsgRes.messages?.[0]?.id;
+        if (logId) {
+          await this.prisma.notificationLog
+            .update({
+              where: { id: logId },
+              data: {
+                status: 'SENT',
+                subject: textMessageId ? `WAMID_TEXT_FALLBACK: ${textMessageId}` : `WHATSAPP: PAYMENT_REQUEST_TEXT`,
+              },
+            })
+            .catch(() => {});
+        }
+
+        return {
+          success: true,
+          status: 'TEXT_SENT',
+          messageId: textMessageId,
+          fallbackUrl,
+          qrDataUrl: params.qrDataUrl,
+          upiUri: params.upiUri,
+          amountRequested: params.amountRequested,
+        };
+      } catch (textErr: any) {
+        if (logId) {
+          await this.prisma.notificationLog
+            .update({
+              where: { id: logId },
+              data: {
+                status: 'FAILED',
+                errorMessage: sanitizedError,
+                retryCount: { increment: 1 },
+              },
+            })
+            .catch(() => {});
+        }
+
+        return {
+          success: false,
+          status: 'FAILED',
+          fallbackUrl,
+          qrDataUrl: params.qrDataUrl,
+          upiUri: params.upiUri,
+          amountRequested: params.amountRequested,
+        };
+      }
+    }
   }
 
   async notifyPaymentReceived(

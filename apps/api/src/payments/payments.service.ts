@@ -1,11 +1,12 @@
 // @ts-nocheck
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import * as crypto from 'crypto';
 import Razorpay from 'razorpay';
 import { BookingStatus, PaymentStatus } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
 
 @Injectable()
 export class PaymentsService {
@@ -16,6 +17,7 @@ export class PaymentsService {
     private prisma: PrismaService,
     private notificationsService: NotificationsService,
     private auditService: AuditService,
+    @Optional() private whatsAppService?: WhatsAppService,
   ) {
     const key_id = process.env.RAZORPAY_KEY_ID;
     const key_secret = process.env.RAZORPAY_KEY_SECRET;
@@ -243,6 +245,10 @@ export class PaymentsService {
         throw new BadRequestException('Cannot record payment for this booking status');
       }
 
+      if (amount > booking.balanceAmount) {
+        throw new BadRequestException(`Payment amount (₹${amount}) exceeds remaining balance (₹${booking.balanceAmount})`);
+      }
+
       const paymentMethod = method ? method.toUpperCase() : 'CASH';
 
       const payment = await tx.payment.create({
@@ -264,17 +270,18 @@ export class PaymentsService {
         newStatus = BookingStatus.CONFIRMED;
       }
 
-      await tx.booking.update({
+      const updatedBooking = await tx.booking.update({
         where: { id: bookingId },
         data: { 
           status: newStatus, 
-          amountPaid: newAmountPaid,
-          balanceAmount: newBalance,
+          amountPaid: newAmountPaid, 
+          balanceAmount: newBalance, 
           notes: notes ? (booking.notes ? `${booking.notes}\n${notes}` : notes) : booking.notes
-        }
+        },
+        include: { user: true }
       });
 
-      // Fire & forget notification
+      // Fire & forget email notification
       this.notificationsService.sendPaymentStatus(
         booking.id,
         booking.user.email,
@@ -290,7 +297,14 @@ export class PaymentsService {
         status: newStatus, 
         amountPaid: newAmountPaid, 
         balanceAmount: newBalance, 
-        payment 
+        payment,
+        user: booking.user,
+        booking: updatedBooking || {
+          ...booking,
+          amountPaid: newAmountPaid,
+          balanceAmount: newBalance,
+          status: newStatus,
+        }
       };
     });
 
@@ -299,14 +313,26 @@ export class PaymentsService {
       entity: 'PAYMENT',
       entityId: result.payment.id,
       userId: actorUserId,
-      description: `Recorded ₹${amount} ${method} payment for booking #${result.bookingId}`,
+      description: `Recorded ₹${amount} ${result.payment.method} payment for booking #${result.bookingId}`,
       newValue: {
         amount,
         method: result.payment.method,
         bookingId: result.bookingId,
         referenceId: referenceId || null,
+        status: result.status,
       },
     });
+
+    // Post-commit: Fire & forget WhatsApp receipt (failure does not break booking or rollback payment)
+    const targetUser = result.user || result.booking?.user;
+    if (this.whatsAppService && targetUser?.phone) {
+      this.whatsAppService.notifyPaymentReceived(
+        result.booking,
+        targetUser,
+        amount,
+        result.payment.method
+      ).catch((err: unknown) => this.logger.error('Failed to send WhatsApp payment receipt', err));
+    }
 
     return result;
   }

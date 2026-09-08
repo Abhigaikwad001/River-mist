@@ -4,19 +4,60 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CapacityService } from '../capacity/capacity.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
-import { BadRequestException } from '@nestjs/common';
+import { UpiPaymentQrService } from '../payments/qr/upi-payment-qr.service';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { EventType, BookingStatus } from '@prisma/client';
 
 describe('BookingsService', () => {
   let service: BookingsService;
   let prisma: any;
   let tx: any;
+  let mockUpiPaymentQrService: any;
+  let mockWhatsAppService: any;
 
   const mockAuditService = {
     logAction: jest.fn().mockResolvedValue(undefined),
   };
 
   beforeEach(async () => {
+    const mockQrResult = {
+      amount: 3000,
+      upiUri: 'upi://pay?pa=rivermist@upi&pn=River%20Mist&am=3000.00&cu=INR&tn=RM-1',
+      qrBuffer: Buffer.from('fake-qr-data'),
+      qrDataUrl: 'data:image/png;base64,fake-qr-data',
+      calculation: {
+        amountRequested: 3000,
+        totalAmount: 12000,
+        advanceRequired: 3000,
+        amountPaid: 0,
+        balanceAmount: 12000,
+      },
+      financials: {
+        amountRequested: 3000,
+        totalAmount: 12000,
+        advanceRequired: 3000,
+        amountPaid: 0,
+        balanceAmount: 12000,
+      },
+      bookingId: 101,
+      bookingNumber: 'RM-2026-000101',
+    };
+
+    mockUpiPaymentQrService = {
+      generatePaymentRequest: jest.fn().mockResolvedValue(mockQrResult),
+      generatePaymentQr: jest.fn().mockResolvedValue(mockQrResult),
+      calculateAuthoritativeAmount: jest.fn().mockReturnValue(mockQrResult.calculation),
+    };
+
+    mockWhatsAppService = {
+      sendPaymentRequestWithQr: jest.fn().mockResolvedValue({
+        success: true,
+        status: 'SENT',
+        messageId: 'wam_test_123',
+      }),
+    };
+
     tx = {
       booking: {
         count: jest.fn().mockResolvedValue(0),
@@ -76,6 +117,14 @@ describe('BookingsService', () => {
         {
           provide: AuditService,
           useValue: mockAuditService,
+        },
+        {
+          provide: UpiPaymentQrService,
+          useValue: mockUpiPaymentQrService,
+        },
+        {
+          provide: WhatsAppService,
+          useValue: mockWhatsAppService,
         },
       ],
     }).compile();
@@ -254,4 +303,207 @@ describe('BookingsService', () => {
       expect(res.advanceRequired).toBe(0);
     });
   });
+
+  describe('Phase 13 — WhatsApp Payment QR & Post-Booking Automation', () => {
+    const mockBooking = {
+      id: 101,
+      bookingNumber: 'RM-2026-000101',
+      status: BookingStatus.APPROVED,
+      totalAmount: 12000,
+      advanceRequired: 3000,
+      amountPaid: 0,
+      balanceAmount: 12000,
+      date: new Date('2026-10-15'),
+      package: { name: 'Royal Celebration' },
+      user: { id: 22, name: 'Aditi Sharma', email: 'aditi@example.com', phone: '+919876543210' },
+    };
+
+    describe('getPaymentQr', () => {
+      it('should return authoritative financial summary, upiUri and qrDataUrl', async () => {
+        prisma.booking.findUnique.mockResolvedValue(mockBooking);
+
+        const result = await service.getPaymentQr(101);
+
+        expect(result.bookingId).toBe(101);
+        expect(result.bookingNumber).toBe('RM-2026-000101');
+        expect(result.financials.amountRequested).toBe(3000);
+        expect(result.financials.totalAmount).toBe(12000);
+        expect(result.upiUri).toContain('upi://pay?');
+        expect(result.qrDataUrl).toBe('data:image/png;base64,fake-qr-data');
+      });
+
+      it('should throw BadRequestException if booking does not exist', async () => {
+        prisma.booking.findUnique.mockResolvedValue(null);
+
+        await expect(service.getPaymentQr(999)).rejects.toThrow(BadRequestException);
+      });
+    });
+
+    describe('sendPaymentRequest', () => {
+      it('should send WhatsApp payment request with exact server-calculated amount and audit the action', async () => {
+        prisma.booking.findUnique.mockResolvedValue(mockBooking);
+
+        const result = await service.sendPaymentRequest(101, 1);
+
+        expect(result.success).toBe(true);
+        expect(mockUpiPaymentQrService.generatePaymentRequest).toHaveBeenCalledWith(mockBooking);
+        expect(mockWhatsAppService.sendPaymentRequestWithQr).toHaveBeenCalled();
+        expect(mockAuditService.logAction).toHaveBeenCalledWith(
+          expect.objectContaining({
+            action: 'PAYMENT_REQUEST_SENT',
+            entityId: 101,
+          }),
+        );
+      });
+
+      it('should reject payment request if booking status is CANCELLED', async () => {
+        prisma.booking.findUnique.mockResolvedValue({
+          ...mockBooking,
+          status: BookingStatus.CANCELLED,
+        });
+
+        await expect(service.sendPaymentRequest(101, 1)).rejects.toThrow(BadRequestException);
+      });
+
+      it('should reject payment request if balance is 0 and already settled', async () => {
+        prisma.booking.findUnique.mockResolvedValue({
+          ...mockBooking,
+          amountPaid: 12000,
+          balanceAmount: 0,
+        });
+        mockUpiPaymentQrService.generatePaymentRequest.mockRejectedValue(
+          new BadRequestException('Booking has already been fully settled.'),
+        );
+
+        await expect(service.sendPaymentRequest(101, 1)).rejects.toThrow(BadRequestException);
+      });
+    });
+
+    describe('confirmAvailability (Step 1 - Separated Action)', () => {
+      it('should confirm availability from REQUESTED to APPROVED without sending payment request or QR', async () => {
+        const requestedBooking = {
+          ...mockBooking,
+          status: BookingStatus.REQUESTED,
+        };
+        prisma.booking.findUnique.mockResolvedValue(requestedBooking);
+        prisma.booking.update.mockResolvedValue({
+          ...requestedBooking,
+          status: BookingStatus.APPROVED,
+        });
+
+        const result = await service.confirmAvailability(101, 1);
+
+        expect(result.status).toBe(BookingStatus.APPROVED);
+        expect(mockAuditService.logAction).toHaveBeenCalledWith(
+          expect.objectContaining({
+            action: 'CONFIRM_AVAILABILITY',
+            entityId: 101,
+            userId: 1,
+            newValue: { status: BookingStatus.APPROVED },
+          }),
+        );
+
+        // Crucial verification: Confirming availability MUST NOT call WhatsApp payment QR
+        expect(mockWhatsAppService.sendPaymentRequestWithQr).not.toHaveBeenCalled();
+        expect(mockUpiPaymentQrService.generatePaymentRequest).not.toHaveBeenCalled();
+      });
+
+      it('should confirm availability from UNDER_REVIEW to APPROVED', async () => {
+        const underReviewBooking = {
+          ...mockBooking,
+          status: BookingStatus.UNDER_REVIEW,
+        };
+        prisma.booking.findUnique.mockResolvedValue(underReviewBooking);
+        prisma.booking.update.mockResolvedValue({
+          ...underReviewBooking,
+          status: BookingStatus.APPROVED,
+        });
+
+        const result = await service.confirmAvailability(101, 2);
+        expect(result.status).toBe(BookingStatus.APPROVED);
+        expect(mockWhatsAppService.sendPaymentRequestWithQr).not.toHaveBeenCalled();
+      });
+
+      it('should reject confirmAvailability if booking is already APPROVED, CONFIRMED, or CANCELLED', async () => {
+        prisma.booking.findUnique.mockResolvedValue({
+          ...mockBooking,
+          status: BookingStatus.APPROVED,
+        });
+
+        await expect(service.confirmAvailability(101, 1)).rejects.toThrow(
+          BadRequestException,
+        );
+
+        prisma.booking.findUnique.mockResolvedValue({
+          ...mockBooking,
+          status: BookingStatus.CANCELLED,
+        });
+
+        await expect(service.confirmAvailability(101, 1)).rejects.toThrow(
+          BadRequestException,
+        );
+      });
+    });
+
+    describe('confirmAvailabilityAndRequestPayment', () => {
+      it('should confirm availability from REQUESTED to APPROVED and dispatch payment QR', async () => {
+        const requestedBooking = {
+          ...mockBooking,
+          status: BookingStatus.REQUESTED,
+        };
+        prisma.booking.findUnique
+          .mockResolvedValueOnce(requestedBooking)
+          .mockResolvedValueOnce({
+            ...requestedBooking,
+            status: BookingStatus.APPROVED,
+          });
+        prisma.booking.update.mockResolvedValue({
+          ...requestedBooking,
+          status: BookingStatus.APPROVED,
+        });
+
+        const result = await service.confirmAvailabilityAndRequestPayment(101, 1);
+
+        expect(result.success).toBe(true);
+        expect(result.booking.status).toBe(BookingStatus.PAYMENT_PENDING);
+        expect(mockAuditService.logAction).toHaveBeenCalledWith(
+          expect.objectContaining({
+            action: 'CONFIRM_AVAILABILITY',
+            entityId: 101,
+          }),
+        );
+      });
+
+      it('should preserve booking status change even if WhatsApp delivery fails (decoupled failure resilience)', async () => {
+        const requestedBooking = {
+          ...mockBooking,
+          status: BookingStatus.REQUESTED,
+        };
+        prisma.booking.findUnique
+          .mockResolvedValueOnce(requestedBooking)
+          .mockResolvedValueOnce({
+            ...requestedBooking,
+            status: BookingStatus.APPROVED,
+          });
+        prisma.booking.update.mockResolvedValue({
+          ...requestedBooking,
+          status: BookingStatus.APPROVED,
+        });
+
+        // WhatsApp fails
+        mockWhatsAppService.sendPaymentRequestWithQr.mockResolvedValue({
+          success: false,
+          status: 'FAILED',
+          error: 'Meta Cloud API 500 error',
+        });
+
+        const result = await service.confirmAvailabilityAndRequestPayment(101, 1);
+
+        // Booking availability remains successfully approved and advanced to payment pending
+        expect(result.booking.status).toBe(BookingStatus.PAYMENT_PENDING);
+        expect(result.whatsapp.success).toBe(false);
+      });
+    });
+  });
 });
+

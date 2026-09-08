@@ -36,6 +36,7 @@ describe('WhatsApp Integration (Phase 12)', () => {
           }
           return Promise.resolve(log || { id: args.where.id, ...args.data });
         }),
+        findFirst: jest.fn().mockResolvedValue(null),
       },
     };
 
@@ -427,6 +428,122 @@ describe('WhatsApp Integration (Phase 12)', () => {
       // CRITICAL: Ensure token itself is NEVER present in the status object
       const json = JSON.stringify(status);
       expect(json).not.toContain('super_secret_token');
+    });
+  });
+
+  describe('15. Phase 13 — WhatsApp Payment QR Automation & Idempotency', () => {
+    const paymentParams = {
+      booking: {
+        id: 77,
+        bookingNumber: 'RM-2026-000077',
+        date: '2026-11-20',
+        totalAmount: 15000,
+        advanceRequired: 5000,
+        amountPaid: 0,
+        balanceAmount: 15000,
+        package: { name: 'Sunset Villa Package' },
+      },
+      customer: {
+        name: 'Rohan Deshmukh',
+        phone: '+91 98230 11223',
+      },
+      amountRequested: 5000,
+      upiUri: 'upi://pay?pa=rivermist@upi&pn=River%20Mist&am=5000.00&cu=INR&tn=RM-2026-000077',
+      qrBuffer: Buffer.from('fake-qr-png-buffer'),
+    };
+
+    it('should prevent duplicate payment requests within 5-minute idempotency window', async () => {
+      // Mock existing recent log
+      prisma.notificationLog.findFirst.mockResolvedValueOnce({
+        id: 991,
+        bookingId: 77,
+        channel: 'WHATSAPP',
+        type: 'WHATSAPP_PAYMENT_REQUEST',
+        status: 'SENT',
+        providerMessageId: 'meta_existing_123',
+        createdAt: new Date(),
+      });
+
+      const result = await service.sendPaymentRequestWithQr(paymentParams);
+
+      expect(result.success).toBe(true);
+      expect(result.status).toBe('ALREADY_SENT');
+      expect(result.messageId).toBe('meta_existing_123');
+      // No new log created
+      expect(prisma.notificationLog.create).not.toHaveBeenCalled();
+    });
+
+    it('should generate wa.me fallback when Meta Cloud API is unconfigured / in HYBRID mode', async () => {
+      delete process.env.WHATSAPP_CLOUD_API_TOKEN;
+      delete process.env.WHATSAPP_PHONE_NUMBER_ID;
+      process.env.WHATSAPP_MODE = 'HYBRID';
+      service.reloadConfig();
+
+      const result = await service.sendPaymentRequestWithQr(paymentParams);
+
+      expect(result.success).toBe(true);
+      expect(result.status).toBe('FALLBACK_GENERATED');
+      expect(result.fallbackUrl).toBeDefined();
+      expect(result.fallbackUrl).toContain('https://wa.me/919823011223');
+      expect(result.fallbackUrl).toContain('River%20Mist');
+      expect(result.fallbackUrl).toContain('5%2C000'); // formatted advance requested
+    });
+
+    it('should upload in-memory media and send image message when Cloud API is configured', async () => {
+      process.env.WHATSAPP_CLOUD_API_TOKEN = 'valid_token_123';
+      process.env.WHATSAPP_PHONE_NUMBER_ID = 'phone_id_999';
+      process.env.WHATSAPP_MODE = 'CLOUD_API';
+      service.reloadConfig();
+
+      const uploadSpy = jest
+        .spyOn(client, 'uploadMedia')
+        .mockResolvedValue({ id: 'meta_media_id_777' });
+      const sendImageSpy = jest
+        .spyOn(client, 'sendImageMessage')
+        .mockResolvedValue({ messages: [{ id: 'wam_msg_888' }] });
+
+      const result = await service.sendPaymentRequestWithQr(paymentParams);
+
+      expect(result.success).toBe(true);
+      expect(result.status).toBe('SENT');
+      expect(result.messageId).toBe('wam_msg_888');
+      expect(uploadSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        'phone_id_999',
+        'valid_token_123',
+        paymentParams.qrBuffer,
+        'image/png',
+        'rivermist-RM-2026-000077-qr.png',
+      );
+      expect(sendImageSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        'phone_id_999',
+        'valid_token_123',
+        '919823011223',
+        'meta_media_id_777',
+        expect.stringContaining('RM-2026-000077'),
+      );
+    });
+
+    it('should gracefully fallback to text message with UPI link if media upload fails', async () => {
+      process.env.WHATSAPP_CLOUD_API_TOKEN = 'valid_token_123';
+      process.env.WHATSAPP_PHONE_NUMBER_ID = 'phone_id_999';
+      process.env.WHATSAPP_MODE = 'CLOUD_API';
+      service.reloadConfig();
+
+      jest
+        .spyOn(client, 'uploadMedia')
+        .mockRejectedValue(new Error('Meta media upload rate limit'));
+      const sendTextSpy = jest
+        .spyOn(client, 'sendMessage')
+        .mockResolvedValue({ messages: [{ id: 'wam_text_msg_999' }] });
+
+      const result = await service.sendPaymentRequestWithQr(paymentParams);
+
+      expect(result.success).toBe(true);
+      expect(result.status).toBe('TEXT_SENT');
+      expect(result.messageId).toBe('wam_text_msg_999');
+      expect(sendTextSpy).toHaveBeenCalled();
     });
   });
 });

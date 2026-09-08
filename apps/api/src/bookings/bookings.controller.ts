@@ -94,4 +94,47 @@ export class BookingsController {
     }
     return { status: booking.status };
   }
+
+  @ApiOperation({ summary: 'Get authoritative payment QR and UPI details for a booking' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.BOOKING_MANAGER, Role.FINANCE_MANAGER)
+  @Get(':id/payment-qr')
+  getPaymentQr(@Param('id') id: string) {
+    return this.bookingsService.getPaymentQr(Number(id));
+  }
+
+  @ApiOperation({ summary: 'Send exact-amount payment request & QR via WhatsApp (Admin)' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.BOOKING_MANAGER, Role.FINANCE_MANAGER)
+  @Post(':id/send-payment-request')
+  sendPaymentRequest(
+    @Param('id') id: string,
+    @Request() req: any,
+    @Body('force') force?: boolean,
+  ) {
+    return this.bookingsService.sendPaymentRequest(Number(id), req.user?.id, force);
+  }
+
+  @ApiOperation({ summary: 'Confirm availability only (Step 1 - Admin)' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.BOOKING_MANAGER)
+  @Post(':id/confirm-availability')
+  confirmAvailability(
+    @Param('id') id: string,
+    @Request() req: any,
+  ) {
+    return this.bookingsService.confirmAvailability(Number(id), req.user?.id);
+  }
+
+  @ApiOperation({ summary: 'Confirm availability and send payment QR via WhatsApp (Admin)' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.BOOKING_MANAGER, Role.FINANCE_MANAGER)
+  @Post(':id/confirm-and-request-payment')
+  confirmAndRequestPayment(
+    @Param('id') id: string,
+    @Request() req: any,
+    @Body('force') force?: boolean,
+  ) {
+    return this.bookingsService.confirmAvailabilityAndRequestPayment(Number(id), req.user?.id, force);
+  }
 }

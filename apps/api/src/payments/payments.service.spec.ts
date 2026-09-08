@@ -123,7 +123,7 @@ describe('PaymentsService', () => {
     await expect(service.createOrder(1, 2)).rejects.toThrow(BadRequestException);
   });
 
-  it('should record manual payment and update booking status to CONFIRMED', async () => {
+    it('should record manual payment and update booking status to CONFIRMED', async () => {
     tx.booking.findUnique.mockResolvedValue({
       id: 1,
       bookingNumber: 'RM-2026-000001',
@@ -132,10 +132,10 @@ describe('PaymentsService', () => {
       advanceRequired: 2000,
       amountPaid: 0,
       balanceAmount: 5000,
-      user: { email: 'guest@example.com', name: 'Guest' },
+      user: { email: 'guest@example.com', name: 'Guest', phone: '919876543210' },
     });
 
-    const res = await service.recordManualPayment(1, 2500, 'UPI', 'UPI-REF-999', 'Received via PhonePe');
+    const res = await service.recordManualPayment(1, 2500, 'UPI', 'UPI-REF-999', 'Received via PhonePe', 42);
     expect(res.success).toBe(true);
     expect(res.status).toBe(BookingStatus.CONFIRMED);
     expect(res.amountPaid).toBe(2500);
@@ -149,6 +149,86 @@ describe('PaymentsService', () => {
         razorpayPaymentId: 'UPI-REF-999',
       })
     }));
+    expect(mockAuditService.logAction).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'PAYMENT_RECORDED',
+      userId: 42,
+    }));
+  });
+
+  it('should reject manual payment if amount exceeds remaining balance', async () => {
+    tx.booking.findUnique.mockResolvedValue({
+      id: 1,
+      bookingNumber: 'RM-2026-000001',
+      status: BookingStatus.APPROVED,
+      totalAmount: 5000,
+      advanceRequired: 2000,
+      amountPaid: 3000,
+      balanceAmount: 2000,
+      user: { email: 'guest@example.com', name: 'Guest' },
+    });
+
+    await expect(service.recordManualPayment(1, 2500, 'UPI')).rejects.toThrow(BadRequestException);
+    await expect(service.recordManualPayment(1, 2500, 'UPI')).rejects.toThrow('exceeds remaining balance');
+  });
+
+  it('should support multiple payments sequentially preserving history and calculating exact balance', async () => {
+    // Payment 1: ₹3,000 advance
+    tx.booking.findUnique.mockResolvedValueOnce({
+      id: 10,
+      bookingNumber: 'RM-2026-000010',
+      status: BookingStatus.APPROVED,
+      totalAmount: 12000,
+      advanceRequired: 3000,
+      amountPaid: 0,
+      balanceAmount: 12000,
+      user: { email: 'guest@example.com', name: 'Guest' },
+    });
+
+    const res1 = await service.recordManualPayment(10, 3000, 'UPI', 'REF-P1', 'Advance received');
+    expect(res1.status).toBe(BookingStatus.CONFIRMED);
+    expect(res1.amountPaid).toBe(3000);
+    expect(res1.balanceAmount).toBe(9000);
+
+    // Payment 2: ₹9,000 balance settlement
+    tx.booking.findUnique.mockResolvedValueOnce({
+      id: 10,
+      bookingNumber: 'RM-2026-000010',
+      status: BookingStatus.CONFIRMED,
+      totalAmount: 12000,
+      advanceRequired: 3000,
+      amountPaid: 3000,
+      balanceAmount: 9000,
+      user: { email: 'guest@example.com', name: 'Guest' },
+    });
+
+    const res2 = await service.recordManualPayment(10, 9000, 'BANK_TRANSFER', 'REF-P2', 'Final balance');
+    expect(res2.status).toBe(BookingStatus.CONFIRMED);
+    expect(res2.amountPaid).toBe(12000);
+    expect(res2.balanceAmount).toBe(0);
+    expect(tx.payment.create).toHaveBeenCalledTimes(2);
+  });
+
+  it('should trigger WhatsApp receipt post-commit, and succeed even if WhatsApp delivery fails', async () => {
+    const mockWhatsAppService = {
+      notifyPaymentReceived: jest.fn().mockRejectedValue(new Error('WhatsApp API error')),
+    };
+    (service as any).whatsAppService = mockWhatsAppService;
+
+    tx.booking.findUnique.mockResolvedValue({
+      id: 1,
+      bookingNumber: 'RM-2026-000001',
+      status: BookingStatus.PAYMENT_PENDING,
+      totalAmount: 5000,
+      advanceRequired: 2000,
+      amountPaid: 0,
+      balanceAmount: 5000,
+      user: { email: 'guest@example.com', name: 'Guest', phone: '919876543210' },
+    });
+
+    // Payment still succeeds despite WhatsApp failure
+    const res = await service.recordManualPayment(1, 2000, 'CASH', undefined, undefined, 5);
+    expect(res.success).toBe(true);
+    expect(mockWhatsAppService.notifyPaymentReceived).toHaveBeenCalled();
   });
 
   it('should reject manual payment with invalid amount', async () => {

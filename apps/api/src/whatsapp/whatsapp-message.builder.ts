@@ -14,6 +14,10 @@ export interface BookingMessageContext {
   balanceAmount?: number;
   paymentMethod?: string;
   amountPaid?: number;
+  amountRequested?: number;
+  upiId?: string;
+  payeeName?: string;
+  upiUri?: string;
 }
 
 export interface QuoteMessageContext {
@@ -94,16 +98,33 @@ export class WhatsAppMessageBuilder {
           `We look forward to welcoming you to River Mist. For any queries, reply directly to this message!`
         );
 
-      case WhatsAppTemplateType.PAYMENT_INSTRUCTIONS:
+      case WhatsAppTemplateType.PAYMENT_INSTRUCTIONS: {
+        const amtRequested = ctx.amountRequested || ctx.advanceRequired || ctx.balanceAmount || ctx.totalAmount || 0;
+        const paidSoFar = ctx.amountPaid || 0;
+        const advanceReq = ctx.advanceRequired || amtRequested;
+        const upiId = ctx.upiId || 'rivermist@upi';
+        const payee = ctx.payeeName || 'River Mist';
+        const upiUri = ctx.upiUri || `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payee)}&am=${amtRequested.toFixed(2)}&cu=INR&tn=${encodeURIComponent('River Mist ' + ctx.bookingNumber)}`;
+
         return (
           `💳 *River Mist — Payment Instructions*\n\n` +
           `Dear ${ctx.customerName},\n` +
           `To secure your reservation for Booking ID *${ctx.bookingNumber}*:\n\n` +
-          `💰 *Advance Required:* ₹${ctx.advanceRequired?.toLocaleString('en-IN') || 0}\n` +
-          `🏦 *UPI ID:* rivermist@upi\n` +
-          `🏛️ *Account Name:* River Mist Agro Resort\n\n` +
-          `Please use the UPI ID / Bank details above to complete payment. After completing the transfer, please reply to this chat with your transaction screenshot or reference number.`
+          `💰 *Total Booking Amount:* ₹${ctx.totalAmount?.toLocaleString('en-IN') || 0}\n` +
+          `💵 *Amount Paid So Far:* ₹${paidSoFar.toLocaleString('en-IN')}\n` +
+          `*Advance Required:* ₹${advanceReq.toLocaleString('en-IN')}\n` +
+          `⚡ *Amount Requested Now:* ₹${amtRequested.toLocaleString('en-IN')}\n` +
+          `💳 *Balance Due:* ₹${(ctx.balanceAmount ?? Math.max(0, (ctx.totalAmount || 0) - paidSoFar)).toLocaleString('en-IN')}\n\n` +
+          `━━━━━━━━━━━━━━━━━━━\n` +
+          `📲 *UPI PAYMENT DETAILS*\n` +
+          `🏦 *UPI ID:* ${upiId}\n` +
+          `🏛️ *Account Name:* ${payee}\n` +
+          `🔗 *Tap-to-Pay UPI Link (if supported by your app):*\n${upiUri}\n\n` +
+          `📱 *Paying on this phone?* If the link above does not open directly in WhatsApp, simply copy the UPI ID (*${upiId}*) and paste it into Google Pay, PhonePe, Paytm, or your UPI app with amount *₹${amtRequested.toLocaleString('en-IN')}* and reference *${ctx.bookingNumber}*.\n\n` +
+          `Please use the UPI ID / Bank details above to complete payment. After completing the transfer, please reply to this chat with your transaction screenshot or reference number.\n\n` +
+          `⚠️ *IMPORTANT:* Your reservation is confirmed only after staff verification of payment.`
         );
+      }
 
       case WhatsAppTemplateType.PAYMENT_RECEIVED:
         return (

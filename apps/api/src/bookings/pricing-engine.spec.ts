@@ -6,6 +6,8 @@ import { AuditService } from '../audit/audit.service';
 import { EventType, BookingStatus } from '@prisma/client';
 import { BadRequestException } from '@nestjs/common';
 import { NotificationsService } from '../notifications/notifications.service';
+import { UpiPaymentQrService } from '../payments/qr/upi-payment-qr.service';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
 
 describe('Pricing Engine (Phase 4)', () => {
   let service: BookingsService;
@@ -73,6 +75,21 @@ describe('Pricing Engine (Phase 4)', () => {
         {
           provide: AuditService,
           useValue: mockAuditService,
+        },
+        {
+          provide: UpiPaymentQrService,
+          useValue: {
+            generatePaymentRequest: jest.fn(),
+            generatePaymentQr: jest.fn(),
+            calculateAuthoritativeAmount: jest.fn(),
+          },
+        },
+        {
+          provide: WhatsAppService,
+          useValue: {
+            sendPaymentRequestWithQr: jest.fn(),
+            notifyPaymentReceived: jest.fn(),
+          },
         },
       ],
     }).compile();
