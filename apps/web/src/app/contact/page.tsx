@@ -2,13 +2,14 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Mail, Phone, MapPin, Clock } from 'lucide-react';
+import { Mail, Phone, MapPin, Clock, MessageSquare } from 'lucide-react';
 import { useSiteContent } from '@/hooks/useSiteContent';
+import { WHATSAPP_BOOKING_NUMBER } from '@/lib/config';
 
 export default function ContactPage() {
   const { getText } = useSiteContent('CONTACT');
 
-  const phoneText = getText('contact.phone', '+91 9322759343 / +91 9876543210');
+  const phoneText = getText('contact.phone', '+91 9322759343');
   const emailText = getText('contact.email', 'info@rivermist.in / bookings@rivermist.in');
   const addressText = getText('contact.address', 'River Road, Agro Valley, Maharashtra, India');
   const hoursText = getText('contact.hours', 'Mon - Sun: 9:00 AM to 6:00 PM');
@@ -43,6 +44,23 @@ export default function ContactPage() {
               <div>
                 <h3 className="text-lg font-bold text-[#1E3F20] mb-1">Phone Number</h3>
                 <p className="text-gray-600 whitespace-pre-line">{phoneText}</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center text-green-600 shadow-sm">
+                <MessageSquare size={24} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-[#1E3F20] mb-1">WhatsApp Concierge</h3>
+                <a 
+                  href={`https://wa.me/${WHATSAPP_BOOKING_NUMBER}?text=${encodeURIComponent('Hello River Mist, I would like to enquire about your resort.')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-green-700 font-medium hover:underline inline-flex items-center gap-1.5"
+                >
+                  Chat on WhatsApp (+91 9322759343)
+                </a>
               </div>
             </div>
 

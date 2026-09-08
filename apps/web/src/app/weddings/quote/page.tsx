@@ -1,7 +1,8 @@
 'use client';
 import React, { useState } from 'react';
-import { Send, CheckCircle, AlertCircle } from 'lucide-react';
+import { Send, CheckCircle, AlertCircle, MessageSquare } from 'lucide-react';
 import api from '@/lib/api';
+import { buildWeddingQuoteWhatsAppUrl } from '@/lib/config';
 
 export default function WeddingQuoteRequest() {
   const [submitted, setSubmitted] = useState(false);
@@ -72,12 +73,29 @@ export default function WeddingQuoteRequest() {
         <p className="text-gray-600 max-w-md mx-auto mb-8">
           Thank you for considering River Mist for your special day. Our event manager will contact you within 24 hours with a customized quotation.
         </p>
-        <button 
-          onClick={() => window.location.href = '/'}
-          className="px-8 py-3 bg-[#1E3F20] text-white rounded-full font-medium hover:bg-[#2A522C] transition-colors"
-        >
-          Return to Home
-        </button>
+        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <a 
+            href={buildWeddingQuoteWhatsAppUrl({
+              quoteNumber: 'Pending Review',
+              guestName: formData.name,
+              guestPhone: formData.phone,
+              eventDate: formData.eventDate,
+              guestCount: formData.guestCount,
+              notes: formData.notes
+            })}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-8 py-3 bg-[#25D366] text-white rounded-full font-medium hover:bg-[#1EBE5D] transition-colors inline-flex items-center justify-center gap-2 shadow-sm"
+          >
+            <MessageSquare size={18} /> Chat on WhatsApp Concierge
+          </a>
+          <button 
+            onClick={() => window.location.href = '/'}
+            className="px-8 py-3 bg-[#1E3F20] text-white rounded-full font-medium hover:bg-[#2A522C] transition-colors"
+          >
+            Return to Home
+          </button>
+        </div>
       </div>
     );
   }

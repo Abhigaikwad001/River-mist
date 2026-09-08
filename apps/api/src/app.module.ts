@@ -22,6 +22,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { DiscountsModule } from './discounts/discounts.module';
 import { ContentModule } from './content/content.module';
 import { AuditModule } from './audit/audit.module';
+import { WhatsAppModule } from './whatsapp/whatsapp.module';
 
 @Module({
   imports: [
@@ -47,7 +48,8 @@ import { AuditModule } from './audit/audit.module';
     NotificationsModule,
     DiscountsModule,
     ContentModule,
-    AuditModule
+    AuditModule,
+    WhatsAppModule
   ],
   controllers: [AppController],
   providers: [

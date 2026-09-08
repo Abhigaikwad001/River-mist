@@ -3,6 +3,8 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailProvider } from './providers/email.provider';
 import { SmsProvider } from './providers/sms.provider';
+import { WhatsAppProvider } from '../whatsapp/whatsapp.provider';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { SendNotificationDto, INotificationProvider } from './providers/notification.provider.interface';
 import { BookingStatus, PaymentStatus } from '@prisma/client';
 
@@ -15,9 +17,12 @@ export class NotificationsService {
     private prisma: PrismaService,
     private emailProvider: EmailProvider,
     private smsProvider: SmsProvider,
+    private whatsAppProvider: WhatsAppProvider,
+    private whatsAppService: WhatsAppService,
   ) {
     this.providers['EMAIL'] = this.emailProvider;
     this.providers['SMS'] = this.smsProvider;
+    this.providers['WHATSAPP'] = this.whatsAppProvider;
   }
 
   /**
@@ -88,6 +93,23 @@ export class NotificationsService {
       content,
       bookingId,
     });
+
+    // Fire-and-forget WhatsApp notification
+    try {
+      const booking = await this.prisma.booking.findUnique({
+        where: { id: bookingId },
+        include: { user: true, package: true },
+      });
+      if (booking) {
+        await this.whatsAppService.notifyBookingRequested(booking, {
+          name: userName,
+          email: userEmail,
+          phone: booking.user?.phone,
+        });
+      }
+    } catch (waErr: any) {
+      this.logger.warn(`WhatsApp request notification failed safely for booking ${bookingNumber}: ${waErr.message}`);
+    }
   }
 
   async sendBookingStatusUpdated(bookingId: number, userEmail: string, userName: string, bookingNumber: string, status: BookingStatus) {
@@ -102,9 +124,40 @@ export class NotificationsService {
       content,
       bookingId,
     });
+
+    // Fire-and-forget WhatsApp notification
+    try {
+      const booking = await this.prisma.booking.findUnique({
+        where: { id: bookingId },
+        include: { user: true, package: true },
+      });
+      if (booking && booking.user?.phone) {
+        if (status === BookingStatus.CONFIRMED) {
+          await this.whatsAppService.notifyBookingConfirmed(booking, {
+            name: userName,
+            email: userEmail,
+            phone: booking.user.phone,
+          });
+        } else if (status === BookingStatus.CANCELLED) {
+          await this.whatsAppService.notifyBookingCancelled(booking, {
+            name: userName,
+            email: userEmail,
+            phone: booking.user.phone,
+          });
+        } else if (status === BookingStatus.PAYMENT_PENDING) {
+          await this.whatsAppService.notifyPaymentInstructions(booking, {
+            name: userName,
+            email: userEmail,
+            phone: booking.user.phone,
+          });
+        }
+      }
+    } catch (waErr: any) {
+      this.logger.warn(`WhatsApp status notification failed safely for booking ${bookingNumber}: ${waErr.message}`);
+    }
   }
 
-  async sendPaymentStatus(bookingId: number, userEmail: string, userName: string, bookingNumber: string, status: PaymentStatus, amount: number) {
+  async sendPaymentStatus(bookingId: number, userEmail: string, userName: string, bookingNumber: string, status: PaymentStatus, amount: number, paymentMethod?: string) {
     const content = `
       <h1>Payment ${status}</h1>
       <p>Hi ${userName},</p>
@@ -116,6 +169,26 @@ export class NotificationsService {
       content,
       bookingId,
     });
+
+    // Fire-and-forget WhatsApp notification for captured payments
+    if (status === PaymentStatus.CAPTURED) {
+      try {
+        const booking = await this.prisma.booking.findUnique({
+          where: { id: bookingId },
+          include: { user: true, package: true },
+        });
+        if (booking && booking.user?.phone) {
+          await this.whatsAppService.notifyPaymentReceived(
+            booking,
+            { name: userName, email: userEmail, phone: booking.user.phone },
+            amount,
+            paymentMethod,
+          );
+        }
+      } catch (waErr: any) {
+        this.logger.warn(`WhatsApp payment notification failed safely for booking ${bookingNumber}: ${waErr.message}`);
+      }
+    }
   }
 
   async sendQuoteCreated(quoteId: number, userEmail: string, userName: string, quoteNumber: string) {
@@ -130,6 +203,23 @@ export class NotificationsService {
       content,
       quoteId,
     });
+
+    // Fire-and-forget WhatsApp notification
+    try {
+      const quote = await this.prisma.weddingQuote.findUnique({
+        where: { id: quoteId },
+        include: { user: true },
+      });
+      if (quote) {
+        await this.whatsAppService.notifyWeddingQuoteReceived(quote, {
+          name: userName,
+          email: userEmail,
+          phone: quote.user?.phone,
+        });
+      }
+    } catch (waErr: any) {
+      this.logger.warn(`WhatsApp quote notification failed safely for quote ${quoteNumber}: ${waErr.message}`);
+    }
   }
 
   async sendQuoteStatusUpdated(quoteId: number, userEmail: string, userName: string, quoteNumber: string, status: string) {
