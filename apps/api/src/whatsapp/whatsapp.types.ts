@@ -28,11 +28,17 @@ export interface WhatsAppConfig {
 
 export interface WhatsAppMessagePayload {
   messaging_product?: string;
+  recipient_type?: string;
   to: string; // E.164 without +, e.g. 919322759343
-  type: 'text' | 'template';
+  type: 'text' | 'template' | 'image';
   text?: {
     preview_url?: boolean;
     body: string;
+  };
+  image?: {
+    id?: string;
+    link?: string;
+    caption?: string;
   };
   template?: {
     name: string;

@@ -96,9 +96,15 @@ export class WhatsAppClient {
 
     try {
       const formData = new FormData();
-      formData.append('file', new Blob([new Uint8Array(fileBuffer)], { type: mimeType }), filename);
-      formData.append('type', mimeType);
+      // Meta Graph API requires messaging_product to be specified for WhatsApp media
       formData.append('messaging_product', 'whatsapp');
+      formData.append('type', mimeType);
+
+      if (typeof File !== 'undefined') {
+        formData.append('file', new File([new Uint8Array(fileBuffer)], filename, { type: mimeType }));
+      } else {
+        formData.append('file', new Blob([new Uint8Array(fileBuffer)], { type: mimeType }), filename);
+      }
 
       const response = await fetch(url, {
         method: 'POST',
@@ -111,9 +117,13 @@ export class WhatsAppClient {
       const responseData = (await response.json()) as any;
 
       if (!response.ok || !responseData.id) {
-        const errMsg = responseData.error?.message || `HTTP ${response.status}: ${response.statusText}`;
-        this.logger.warn(`Meta Media Upload failed: ${errMsg}`);
-        throw new Error(`Meta Media Upload error: ${errMsg}`);
+        const errObj = responseData.error || {};
+        const errMsg = errObj.message || `HTTP ${response.status}: ${response.statusText}`;
+        const errCode = errObj.code ? ` (Code: ${errObj.code})` : '';
+        const errSubCode = errObj.error_subcode ? ` (Subcode: ${errObj.error_subcode})` : '';
+        const errType = errObj.type ? ` [${errObj.type}]` : '';
+        this.logger.error(`Meta Media Upload failed: ${errMsg}${errCode}${errSubCode}${errType}`);
+        throw new Error(`Meta Media Upload error: ${errMsg}${errCode}${errSubCode}${errType}`);
       }
 
       return { id: responseData.id };
@@ -140,6 +150,13 @@ export class WhatsAppClient {
     }
     const url = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`;
 
+    // Strict Meta safety: image captions must not exceed 1024 characters
+    let safeCaption = caption;
+    if (safeCaption && safeCaption.length > 1024) {
+      this.logger.warn(`Image caption length (${safeCaption.length}) exceeds Meta 1024 limit; trimming safely.`);
+      safeCaption = safeCaption.slice(0, 1020) + '...';
+    }
+
     const requestBody = {
       messaging_product: 'whatsapp',
       recipient_type: 'individual',
@@ -147,7 +164,7 @@ export class WhatsAppClient {
       type: 'image',
       image: {
         id: mediaId,
-        ...(caption ? { caption } : {}),
+        ...(safeCaption ? { caption: safeCaption } : {}),
       },
     };
 
@@ -164,10 +181,13 @@ export class WhatsAppClient {
       const responseData = (await response.json()) as WhatsAppCloudApiResponse;
 
       if (!response.ok || responseData.error) {
-        const errMsg = responseData.error?.message || `HTTP ${response.status}: ${response.statusText}`;
-        const errCode = responseData.error?.code ? ` (Code: ${responseData.error.code})` : '';
-        this.logger.warn(`Meta Cloud API responded with error for image to ${to}: ${errMsg}${errCode}`);
-        throw new Error(`Meta WhatsApp Cloud API error: ${errMsg}${errCode}`);
+        const errObj = (responseData as any).error || {};
+        const errMsg = errObj.message || `HTTP ${response.status}: ${response.statusText}`;
+        const errCode = errObj.code ? ` (Code: ${errObj.code})` : '';
+        const errSubCode = errObj.error_subcode ? ` (Subcode: ${errObj.error_subcode})` : '';
+        const errType = errObj.type ? ` [${errObj.type}]` : '';
+        this.logger.error(`Meta Cloud API responded with error for image to ${to}: ${errMsg}${errCode}${errSubCode}${errType}`);
+        throw new Error(`Meta WhatsApp Cloud API error: ${errMsg}${errCode}${errSubCode}${errType}`);
       }
 
       return responseData;

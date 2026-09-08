@@ -33,15 +33,15 @@ export class UpiPaymentQrService {
   private readonly logger = new Logger(UpiPaymentQrService.name);
 
   getUpiId(): string {
-    const upiId = process.env.PAYMENT_UPI_ID?.trim();
+    const upiId = process.env.PAYMENT_UPI_ID?.trim() || process.env.UPI_ID?.trim();
     if (!upiId) {
-      throw new BadRequestException('PAYMENT_UPI_ID is not configured.');
+      throw new BadRequestException('PAYMENT_UPI_ID is not configured in server environment.');
     }
     return upiId;
   }
 
   getPayeeName(): string {
-    return process.env.PAYMENT_PAYEE_NAME?.trim() || 'River Mist';
+    return process.env.PAYMENT_PAYEE_NAME?.trim() || process.env.UPI_PAYEE_NAME?.trim() || 'River Mist Agrotourism';
   }
 
   /**
@@ -156,7 +156,7 @@ export class UpiPaymentQrService {
     }
 
     if (!upiId || upiId.trim() === '') {
-      throw new BadRequestException('PAYMENT_UPI_ID is not configured.');
+      throw new BadRequestException('PAYMENT_UPI_ID is not configured in server environment.');
     }
 
     if (amount <= 0 || isNaN(amount)) {

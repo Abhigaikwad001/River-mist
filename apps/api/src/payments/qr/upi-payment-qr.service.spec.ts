@@ -166,6 +166,13 @@ describe('UpiPaymentQrService (Phase 13 UPI & QR Automation)', () => {
         'PAYMENT_UPI_ID is not configured',
       );
     });
+
+    it('should support UPI_ID as a safe fallback when PAYMENT_UPI_ID is absent', () => {
+      delete process.env.PAYMENT_UPI_ID;
+      process.env.UPI_ID = 'rivermist@hdfc';
+      expect(service.getUpiId()).toBe('rivermist@hdfc');
+      delete process.env.UPI_ID;
+    });
   });
 
   describe('2. UPI URI Specification & URL Encoding', () => {

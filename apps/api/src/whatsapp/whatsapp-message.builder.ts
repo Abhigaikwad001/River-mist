@@ -67,6 +67,52 @@ export class WhatsAppMessageBuilder {
   }
 
   /**
+   * Formats an image-specific caption strictly guaranteed to stay well under Meta's 1024 character limit.
+   */
+  buildPaymentQrCaption(ctx: BookingMessageContext): string {
+    const amtRequested = ctx.amountRequested || ctx.advanceRequired || ctx.balanceAmount || ctx.totalAmount || 0;
+    const paidSoFar = ctx.amountPaid || 0;
+    const advanceReq = ctx.advanceRequired || amtRequested;
+    const upiId = ctx.upiId || 'rivermistresort@icici';
+    const payee = ctx.payeeName || 'River Mist Agrotourism';
+    const upiUri = ctx.upiUri || `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payee)}&am=${amtRequested.toFixed(2)}&cu=INR&tn=${encodeURIComponent('River Mist ' + ctx.bookingNumber)}`;
+    const balanceDue = ctx.balanceAmount ?? Math.max(0, (ctx.totalAmount || 0) - paidSoFar);
+
+    const caption = [
+      `💳 *River Mist — Payment QR & Details*`,
+      ``,
+      `Dear ${ctx.customerName},`,
+      `Please scan this QR code or use the UPI details below to secure your reservation:`,
+      ``,
+      `📋 *Booking ID:* ${ctx.bookingNumber}`,
+      `💰 *Total Amount:* ₹${ctx.totalAmount?.toLocaleString('en-IN') || 0}`,
+      paidSoFar > 0 ? `💵 *Amount Paid:* ₹${paidSoFar.toLocaleString('en-IN')}` : null,
+      advanceReq > 0 ? `*Advance Required:* ₹${advanceReq.toLocaleString('en-IN')}` : null,
+      `⚡ *Amount Requested Now:* ₹${amtRequested.toLocaleString('en-IN')}`,
+      `💳 *Balance Due:* ₹${balanceDue.toLocaleString('en-IN')}`,
+      ``,
+      `━━━━━━━━━━━━━━━━━━━`,
+      `📲 *UPI PAYMENT DETAILS*`,
+      `🏦 *UPI ID:* ${upiId}`,
+      `🏛️ *Account Name:* ${payee}`,
+      `🔗 *UPI Link:* ${upiUri}`,
+      ``,
+      `📱 *Paying on this phone?* Copy UPI ID (*${upiId}*) into Google Pay, PhonePe, Paytm, or BHIM with amount *₹${amtRequested.toLocaleString('en-IN')}* and ref *${ctx.bookingNumber}*.`,
+      ``,
+      `Please reply with your payment screenshot or reference number.`,
+      `⚠️ *Note:* Confirmed upon staff verification.`,
+    ]
+      .filter((line) => line !== null)
+      .join('\n');
+
+    if (caption.length > 1020) {
+      return caption.slice(0, 1017) + '...';
+    }
+
+    return caption;
+  }
+
+  /**
    * Formats human-readable WhatsApp text message.
    */
   buildTextBody(type: WhatsAppTemplateType, ctx: any): string {

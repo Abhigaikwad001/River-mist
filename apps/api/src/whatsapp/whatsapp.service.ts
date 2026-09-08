@@ -305,6 +305,8 @@ export class WhatsAppService {
     status?: string;
     duplicateSuppressed?: boolean;
     mediaId?: string;
+    mediaError?: string;
+    errorMessage?: string;
     messageId?: string;
     fallbackUrl?: string;
     qrDataUrl?: string;
@@ -338,6 +340,7 @@ export class WhatsAppService {
     };
 
     const textCaption = this.messageBuilder.buildTextBody(WhatsAppTemplateType.PAYMENT_INSTRUCTIONS, context);
+    const imageCaption = this.messageBuilder.buildPaymentQrCaption(context);
     const fallbackUrl = `https://wa.me/${recipient}?text=${encodeURIComponent(textCaption)}`;
 
     // 1. Idempotency Guard: Suppress identical payment requests within 5 minutes
@@ -436,14 +439,14 @@ export class WhatsAppService {
         `rivermist-${params.booking.bookingNumber}-qr.png`,
       );
 
-      // Step B: Send official Image message with payment caption
+      // Step B: Send official Image message with payment caption (strictly <= 1024 characters)
       const msgRes = await this.client.sendImageMessage(
         this.config.apiVersion,
         this.config.phoneNumberId!,
         this.config.cloudApiToken!,
         recipient,
         uploadRes.id,
-        textCaption,
+        imageCaption,
       );
 
       const messageId = msgRes.messages?.[0]?.id;
@@ -471,7 +474,9 @@ export class WhatsAppService {
       };
     } catch (err: any) {
       const sanitizedError = this.client.sanitizeSecret(err.message || 'WhatsApp Cloud API Media Error');
-      this.logger.warn(`Failed to send WhatsApp payment QR to ${recipient}: ${sanitizedError}`);
+      this.logger.error(
+        `Failed to send WhatsApp payment QR to ${recipient}: ${sanitizedError}. Initiating text instructions fallback.`,
+      );
 
       // Graceful fallback: Attempt sending full payment instructions as a WhatsApp text message
       try {
@@ -480,6 +485,8 @@ export class WhatsAppService {
           this.config.phoneNumberId!,
           this.config.cloudApiToken!,
           {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
             to: recipient,
             type: 'text',
             text: { body: textCaption },
@@ -494,6 +501,7 @@ export class WhatsAppService {
               data: {
                 status: 'SENT',
                 subject: textMessageId ? `WAMID_TEXT_FALLBACK: ${textMessageId}` : `WHATSAPP: PAYMENT_REQUEST_TEXT`,
+                errorMessage: `Media QR upload/dispatch failed: ${sanitizedError}. Text fallback dispatched successfully.`,
               },
             })
             .catch(() => {});
@@ -501,7 +509,8 @@ export class WhatsAppService {
 
         return {
           success: true,
-          status: 'TEXT_SENT',
+          status: 'TEXT_FALLBACK_SENT',
+          mediaError: sanitizedError,
           messageId: textMessageId,
           fallbackUrl,
           qrDataUrl: params.qrDataUrl,
@@ -509,13 +518,15 @@ export class WhatsAppService {
           amountRequested: params.amountRequested,
         };
       } catch (textErr: any) {
+        const sanitizedTextError = this.client.sanitizeSecret(textErr.message || 'WhatsApp Cloud API Text Error');
+        this.logger.error(`Both Media and Text fallback failed for ${recipient}: ${sanitizedTextError}`);
         if (logId) {
           await this.prisma.notificationLog
             .update({
               where: { id: logId },
               data: {
                 status: 'FAILED',
-                errorMessage: sanitizedError,
+                errorMessage: `Media QR failed: ${sanitizedError} | Text fallback failed: ${sanitizedTextError}`,
                 retryCount: { increment: 1 },
               },
             })
@@ -525,6 +536,8 @@ export class WhatsAppService {
         return {
           success: false,
           status: 'FAILED',
+          mediaError: sanitizedError,
+          errorMessage: sanitizedTextError,
           fallbackUrl,
           qrDataUrl: params.qrDataUrl,
           upiUri: params.upiUri,

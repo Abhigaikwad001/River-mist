@@ -500,7 +500,10 @@ describe('WhatsApp Integration (Phase 12)', () => {
         .mockResolvedValue({ id: 'meta_media_id_777' });
       const sendImageSpy = jest
         .spyOn(client, 'sendImageMessage')
-        .mockResolvedValue({ messages: [{ id: 'wam_msg_888' }] });
+        .mockResolvedValue({
+          messaging_product: 'whatsapp',
+          messages: [{ id: 'wam_msg_888' }],
+        });
 
       const result = await service.sendPaymentRequestWithQr(paymentParams);
 
@@ -525,7 +528,7 @@ describe('WhatsApp Integration (Phase 12)', () => {
       );
     });
 
-    it('should gracefully fallback to text message with UPI link if media upload fails', async () => {
+    it('should gracefully fallback to text message and record media error in log if media upload fails', async () => {
       process.env.WHATSAPP_CLOUD_API_TOKEN = 'valid_token_123';
       process.env.WHATSAPP_PHONE_NUMBER_ID = 'phone_id_999';
       process.env.WHATSAPP_MODE = 'CLOUD_API';
@@ -536,14 +539,75 @@ describe('WhatsApp Integration (Phase 12)', () => {
         .mockRejectedValue(new Error('Meta media upload rate limit'));
       const sendTextSpy = jest
         .spyOn(client, 'sendMessage')
-        .mockResolvedValue({ messages: [{ id: 'wam_text_msg_999' }] });
+        .mockResolvedValue({
+          messaging_product: 'whatsapp',
+          messages: [{ id: 'wam_text_msg_999' }],
+        });
 
       const result = await service.sendPaymentRequestWithQr(paymentParams);
 
       expect(result.success).toBe(true);
-      expect(result.status).toBe('TEXT_SENT');
+      expect(result.status).toBe('TEXT_FALLBACK_SENT');
+      expect(result.mediaError).toContain('Meta media upload rate limit');
       expect(result.messageId).toBe('wam_text_msg_999');
-      expect(sendTextSpy).toHaveBeenCalled();
+      expect(sendTextSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        'phone_id_999',
+        'valid_token_123',
+        expect.objectContaining({
+          type: 'text',
+          text: expect.objectContaining({
+            body: expect.stringContaining('Payment Instructions'),
+          }),
+        }),
+      );
+
+      // Verify NotificationLog explicitly captures the failure reason
+      const lastLog = mockNotificationLogs[mockNotificationLogs.length - 1];
+      expect(lastLog).toBeDefined();
+      expect(lastLog.errorMessage).toContain('Media QR upload/dispatch failed: Meta media upload rate limit');
+    });
+
+    it('should guarantee image caption strictly adheres to Meta 1024 character limit', () => {
+      const longContext = {
+        bookingNumber: 'RM-2026-000042-LONG-REFERENCE',
+        customerName: 'Aaravindhan Balasubramanian and Extended Family Guests',
+        packageName: 'Ultra Luxury Riverfront Villa with Private Deck, Sunset Dinner & Full Agro Experience',
+        dateStr: '2026-11-20',
+        headCountAdult: 12,
+        headCountChild: 6,
+        totalAmount: 185000,
+        advanceRequired: 50000,
+        amountPaid: 25000,
+        balanceAmount: 160000,
+        amountRequested: 25000,
+        upiId: 'rivermistresort.agrotourism@icici',
+        payeeName: 'River Mist Agrotourism Private Limited',
+        upiUri: 'upi://pay?pa=rivermistresort.agrotourism%40icici&pn=River%20Mist%20Agrotourism%20Private%20Limited&am=25000.00&cu=INR&tn=River%20Mist%20RM-2026-000042-LONG-REFERENCE',
+      };
+
+      const caption = messageBuilder.buildPaymentQrCaption(longContext);
+      expect(caption.length).toBeLessThanOrEqual(1024);
+      expect(caption).toContain('RM-2026-000042-LONG-REFERENCE');
+      expect(caption).toContain('rivermistresort.agrotourism@icici');
+      expect(caption).toContain('₹25,000');
+    });
+
+    it('should safely trim image caption in WhatsAppClient if raw string exceeds 1024 characters', async () => {
+      const hugeCaption = 'A'.repeat(1500);
+      const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({ messages: [{ id: 'wam_trimmed_123' }] }),
+      } as any);
+
+      await client.sendImageMessage('v21.0', '12345', 'token', '919322759343', 'media_999', hugeCaption);
+
+      expect(fetchSpy).toHaveBeenCalled();
+      const callBody = JSON.parse((fetchSpy.mock.calls[0][1] as any).body);
+      expect(callBody.image.caption.length).toBeLessThanOrEqual(1024);
+      expect(callBody.image.caption.endsWith('...')).toBe(true);
+
+      fetchSpy.mockRestore();
     });
   });
 });

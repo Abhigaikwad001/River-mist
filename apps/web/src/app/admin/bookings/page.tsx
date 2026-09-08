@@ -670,19 +670,37 @@ export default function BookingsManagement() {
 
                 {/* WhatsApp Result / Fallback Feedback */}
                 {whatsAppResult && (
-                  <div className={`p-3 rounded-xl text-xs space-y-2 ${
-                    whatsAppResult.status === 'SENT' || whatsAppResult.status === 'UPLOAD_FALLBACK' || whatsAppResult.status === 'TEXT_SENT'
+                  <div className={`p-3.5 rounded-xl text-xs space-y-2 ${
+                    whatsAppResult.status === 'SENT'
                       ? 'bg-emerald-50 border border-emerald-200 text-emerald-900'
-                      : 'bg-amber-50 border border-amber-200 text-amber-900'
+                      : whatsAppResult.status === 'TEXT_FALLBACK_SENT' || whatsAppResult.status === 'TEXT_SENT'
+                      ? 'bg-amber-50 border border-amber-200 text-amber-900'
+                      : 'bg-red-50 border border-red-200 text-red-900'
                   }`}>
                     <div className="flex items-center gap-1.5 font-bold">
-                      {whatsAppResult.status === 'SENT' || whatsAppResult.status === 'TEXT_SENT' ? (
-                        <CheckCircle2 size={16} className="text-emerald-600" />
+                      {whatsAppResult.status === 'SENT' ? (
+                        <>
+                          <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                          <span>Payment QR Image & Instructions Dispatched via WhatsApp</span>
+                        </>
+                      ) : whatsAppResult.status === 'TEXT_FALLBACK_SENT' || whatsAppResult.status === 'TEXT_SENT' ? (
+                        <>
+                          <AlertCircle size={16} className="text-amber-600 shrink-0" />
+                          <span>Text Payment Instructions Dispatched (Media QR Fallback)</span>
+                        </>
                       ) : (
-                        <AlertCircle size={16} className="text-amber-600" />
+                        <>
+                          <AlertCircle size={16} className="text-red-600 shrink-0" />
+                          <span>WhatsApp Dispatch Status: {whatsAppResult.status}</span>
+                        </>
                       )}
-                      <span>Status: {whatsAppResult.status}</span>
                     </div>
+
+                    {whatsAppResult.mediaError && (
+                      <div className="p-2 bg-white/70 border border-amber-300 rounded text-[11px] text-amber-800 font-mono">
+                        <strong>Media QR Notice:</strong> {whatsAppResult.mediaError}
+                      </div>
+                    )}
 
                     {whatsAppResult.messageId && (
                       <div className="text-[11px] font-mono text-gray-600">
@@ -692,12 +710,12 @@ export default function BookingsManagement() {
 
                     {whatsAppResult.fallbackUrl && (
                       <div className="pt-1">
-                        <p className="mb-1.5 font-medium">Click-to-Chat Fallback (wa.me) Ready:</p>
+                        <p className="mb-1.5 font-medium text-gray-700">Click-to-Chat Fallback (wa.me) Ready:</p>
                         <a
                           href={whatsAppResult.fallbackUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 shadow-sm transition-colors"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1E3F20] text-white rounded-lg text-xs font-semibold hover:bg-[#2A522C] shadow-sm transition-colors"
                         >
                           <MessageSquare size={14} />
                           <span>Open Customer WhatsApp Chat (wa.me)</span>
