@@ -42,8 +42,7 @@ async function main() {
     await prisma.package.upsert({
       where: { slug: pkg.slug },
       update: {
-        priceAdult: pkg.priceAdult,
-        priceChild: pkg.priceChild
+        // Preserve admin-configured prices and package details across production deployments
       },
       create: {
         name: pkg.name,
@@ -79,12 +78,7 @@ async function main() {
 
   for (const act of activities) {
     let existing = await prisma.activity.findFirst({ where: { name: act.name } });
-    if (existing) {
-      await prisma.activity.update({
-        where: { id: existing.id },
-        data: { price: act.price }
-      });
-    } else {
+    if (!existing) {
       await prisma.activity.create({
         data: {
           name: act.name,
