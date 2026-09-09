@@ -68,12 +68,17 @@ export default function WeddingQuoteRequest() {
   if (submitted) {
     return (
       <div className="min-h-screen bg-[#FAF9F6] pt-32 pb-20 px-6 flex flex-col items-center justify-center text-center">
-        <CheckCircle size={64} className="text-green-500 mb-6" />
-        <h1 className="text-3xl font-serif text-[#1E3F20] mb-4">Request Received!</h1>
-        <p className="text-gray-600 max-w-md mx-auto mb-8">
-          Thank you for considering River Mist for your special day. Our event manager will contact you within 24 hours with a customized quotation.
+        <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 mb-4 shadow-sm">
+          <CheckCircle size={40} />
+        </div>
+        <h1 className="text-3xl font-serif font-bold text-[#1E3F20] mb-2">Request Received!</h1>
+        <p className="text-xs uppercase tracking-widest text-[#D4AF37] font-bold block mb-4">
+          Wedding & Special Event Enquiry Registered
         </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+        <p className="text-gray-600 max-w-md mx-auto mb-6 text-sm leading-relaxed font-light">
+          Thank you for considering River Mist for your celebration. Our events manager will review your date ({formData.eventDate || 'flexible'}) and guest count ({formData.guestCount} guests), then contact you within 24 hours with a customized quotation.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center max-w-md w-full">
           <a 
             href={buildWeddingQuoteWhatsAppUrl({
               quoteNumber: 'Pending Review',
@@ -85,13 +90,13 @@ export default function WeddingQuoteRequest() {
             })}
             target="_blank"
             rel="noopener noreferrer"
-            className="px-8 py-3 bg-[#25D366] text-white rounded-full font-medium hover:bg-[#1EBE5D] transition-colors inline-flex items-center justify-center gap-2 shadow-sm"
+            className="px-6 py-3.5 bg-[#25D366] text-white rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-[#1EBE5D] transition-colors inline-flex items-center justify-center gap-2 shadow-md"
           >
-            <MessageSquare size={18} /> Chat on WhatsApp Concierge
+            <MessageSquare size={16} /> Connect on WhatsApp Concierge
           </a>
           <button 
             onClick={() => window.location.href = '/'}
-            className="px-8 py-3 bg-[#1E3F20] text-white rounded-full font-medium hover:bg-[#2A522C] transition-colors"
+            className="px-6 py-3.5 border border-gray-300 text-gray-700 rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-gray-50 transition-colors"
           >
             Return to Home
           </button>
@@ -101,11 +106,26 @@ export default function WeddingQuoteRequest() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FAF9F6] pt-32 pb-20 px-6">
-      <div className="max-w-3xl mx-auto bg-white p-8 md:p-12 rounded-3xl shadow-lg border border-gray-100">
-        <div className="text-center mb-10">
-          <h1 className="text-3xl md:text-4xl font-serif text-[#1E3F20] mb-4">Request a Wedding Quote</h1>
-          <p className="text-gray-600">Please provide the details of your dream wedding, and we will tailor a package exclusively for you.</p>
+    <div className="min-h-screen bg-[#FAF9F6] pt-32 pb-20 px-4 sm:px-6">
+      <div className="max-w-3xl mx-auto bg-white p-6 sm:p-10 md:p-12 rounded-3xl shadow-lg border border-[#D4AF37]/30">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl md:text-4xl font-serif font-bold text-[#1E3F20] mb-2">
+            Request a Wedding Quote
+          </h1>
+          <p className="text-xs uppercase tracking-widest text-[#D4AF37] font-bold block mb-3">
+            Wedding & Special Event Enquiry
+          </p>
+          <p className="text-gray-600 text-xs sm:text-sm font-light max-w-lg mx-auto leading-relaxed">
+            Please share your planned event details below. Our events team will review venue availability and curate a customized proposal for you.
+          </p>
+        </div>
+
+        {/* Informative notice */}
+        <div className="mb-6 p-4 bg-emerald-50/70 border border-emerald-200/80 text-[#1E3F20] rounded-2xl text-xs flex items-start gap-2.5">
+          <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+          <p className="leading-relaxed">
+            <strong>Bespoke Planning:</strong> This enquiry registers your interest. No payment is collected at this stage. You will receive an itemized proposal including lawns, banquet, catering, and accommodation.
+          </p>
         </div>
 
         {error && (
@@ -118,54 +138,142 @@ export default function WeddingQuoteRequest() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Your Name</label>
-              <input required type="text" className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#D4AF37] focus:border-transparent outline-none transition-all" placeholder="John & Jane Doe" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+              <label htmlFor="wedding-name" className="text-xs uppercase font-bold text-gray-700 tracking-wider">
+                Your Full Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="wedding-name"
+                name="name"
+                required
+                type="text"
+                autoComplete="name"
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#D4AF37] focus:border-transparent outline-none transition-all text-sm"
+                placeholder="John & Jane Doe"
+                value={formData.name}
+                onChange={e => setFormData({...formData, name: e.target.value})}
+              />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Email Address</label>
-              <input required type="email" className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#D4AF37] focus:border-transparent outline-none transition-all" placeholder="john@example.com" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+              <label htmlFor="wedding-email" className="text-xs uppercase font-bold text-gray-700 tracking-wider">
+                Email Address <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="wedding-email"
+                name="email"
+                required
+                type="email"
+                autoComplete="email"
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#D4AF37] focus:border-transparent outline-none transition-all text-sm"
+                placeholder="john@example.com"
+                value={formData.email}
+                onChange={e => setFormData({...formData, email: e.target.value})}
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Phone Number</label>
-              <input required type="tel" className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#D4AF37] focus:border-transparent outline-none transition-all" placeholder="+91 98765 43210" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+              <label htmlFor="wedding-phone" className="text-xs uppercase font-bold text-gray-700 tracking-wider">
+                WhatsApp / Mobile Number <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="wedding-phone"
+                name="phone"
+                required
+                type="tel"
+                autoComplete="tel"
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#D4AF37] focus:border-transparent outline-none transition-all text-sm"
+                placeholder="+91 98765 43210"
+                value={formData.phone}
+                onChange={e => setFormData({...formData, phone: e.target.value})}
+              />
+              <p className="text-[10px] text-gray-500">We will send your proposal & venue brochure via WhatsApp.</p>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Expected Date</label>
-              <input required type="date" className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#D4AF37] focus:border-transparent outline-none transition-all" value={formData.eventDate} onChange={e => setFormData({...formData, eventDate: e.target.value})} />
+              <label htmlFor="wedding-date" className="text-xs uppercase font-bold text-gray-700 tracking-wider">
+                Preferred Event Date <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="wedding-date"
+                name="eventDate"
+                required
+                type="date"
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#D4AF37] focus:border-transparent outline-none transition-all text-sm"
+                value={formData.eventDate}
+                onChange={e => setFormData({...formData, eventDate: e.target.value})}
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-6">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Estimated Guests</label>
-              <input required type="number" min="50" max="1000" className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#D4AF37] focus:border-transparent outline-none transition-all" placeholder="e.g. 300" value={formData.guestCount} onChange={e => setFormData({...formData, guestCount: Number(e.target.value)})} />
+              <label htmlFor="wedding-guests" className="text-xs uppercase font-bold text-gray-700 tracking-wider">
+                Estimated Guest Count <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="wedding-guests"
+                name="guestCount"
+                required
+                type="number"
+                min="50"
+                max="1000"
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#D4AF37] focus:border-transparent outline-none transition-all text-sm"
+                placeholder="e.g. 300"
+                value={formData.guestCount}
+                onChange={e => setFormData({...formData, guestCount: Number(e.target.value)})}
+              />
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Events Planned</label>
-            <div className="flex flex-wrap gap-3">
-              {['Haldi', 'Mehendi', 'Sangeet', 'Wedding', 'Reception'].map((event) => (
-                <label key={event} className={`flex items-center gap-2 px-4 py-2 border rounded-full cursor-pointer transition-colors ${formData.events.includes(event) ? 'bg-[#1E3F20] text-white border-[#1E3F20]' : 'bg-gray-50 text-gray-700 hover:bg-gray-100'}`}>
-                  <input type="checkbox" className="hidden" checked={formData.events.includes(event)} onChange={() => handleEventToggle(event)} />
-                  <span className="text-sm">{event}</span>
+            <label className="text-xs uppercase font-bold text-gray-700 tracking-wider">Ceremonies & Events Planned</label>
+            <div className="flex flex-wrap gap-2.5">
+              {['Haldi', 'Mehendi', 'Sangeet', 'Wedding Ceremony', 'Reception'].map((event) => (
+                <label
+                  key={event}
+                  className={`flex items-center gap-2 px-4 py-2 border rounded-full cursor-pointer transition-colors text-xs font-semibold ${
+                    formData.events.includes(event)
+                      ? 'bg-[#1E3F20] text-white border-[#1E3F20]'
+                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border-gray-200'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={formData.events.includes(event)}
+                    onChange={() => handleEventToggle(event)}
+                  />
+                  <span>{event}</span>
                 </label>
               ))}
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Additional Requirements / Notes</label>
-            <textarea rows={4} className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#D4AF37] focus:border-transparent outline-none transition-all" placeholder="Any specific themes, catering preferences, or accommodation needs?" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})}></textarea>
+            <label htmlFor="wedding-notes" className="text-xs uppercase font-bold text-gray-700 tracking-wider">
+              Specific Requirements / Enquiries
+            </label>
+            <textarea
+              id="wedding-notes"
+              name="notes"
+              rows={4}
+              className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#D4AF37] focus:border-transparent outline-none transition-all text-sm"
+              placeholder="Accommodation needs, pure veg / Maharashtrian catering preferences, special decor themes..."
+              value={formData.notes}
+              onChange={e => setFormData({...formData, notes: e.target.value})}
+            ></textarea>
           </div>
 
-          <button type="submit" disabled={loading} className="w-full py-4 bg-[#1E3F20] text-white rounded-xl font-medium tracking-wide flex items-center justify-center gap-2 hover:bg-[#D4AF37] disabled:opacity-70 disabled:cursor-not-allowed transition-colors duration-300 shadow-md">
-            {loading ? 'Submitting...' : (
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-4 bg-[#1E3F20] text-white rounded-xl font-bold uppercase tracking-widest text-xs flex items-center justify-center gap-2 hover:bg-[#2A522C] disabled:opacity-70 disabled:cursor-not-allowed transition-colors duration-300 shadow-lg"
+          >
+            {loading ? (
+              'Submitting Request...'
+            ) : (
               <>
-                <Send size={18} />
+                <Send size={16} className="text-[#D4AF37]" />
                 Submit Request
               </>
             )}

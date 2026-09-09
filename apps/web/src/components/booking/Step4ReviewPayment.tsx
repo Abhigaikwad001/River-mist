@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useBookingStore } from '@/store/useBookingStore';
-import { ShieldCheck, Loader2, ArrowRight, MessageSquare, CheckCircle, CreditCard, Tag, Check, X, AlertCircle } from 'lucide-react';
+import { ShieldCheck, Loader2, ArrowRight, MessageSquare, CheckCircle, CreditCard, Tag, Check, X, AlertCircle, Calendar, Users, User, Phone, Mail, HelpCircle } from 'lucide-react';
 import api, { getApiErrorMessage } from '@/lib/api';
 import { buildWhatsAppMessageUrl } from '@/lib/config';
 import { format } from 'date-fns';
+import Link from 'next/link';
 
 export function Step4ReviewPayment({ onBack }: { onBack: () => void }) {
   const {
@@ -29,6 +30,42 @@ export function Step4ReviewPayment({ onBack }: { onBack: () => void }) {
   const [createdBooking, setCreatedBooking] = useState<any>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [showRazorpay, setShowRazorpay] = useState(false);
+
+  // Local package and add-on data for embedded mobile/desktop review
+  const [pkg, setPkg] = useState<any>(null);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [loadingData, setLoadingData] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchPackageAndActivities = async () => {
+      if (!packageId) return;
+      try {
+        setLoadingData(true);
+        const pkgRes = await api.get(`/packages/${packageId}`);
+        if (!isMounted) return;
+        setPkg(pkgRes.data);
+
+        if (activityIds && activityIds.length > 0) {
+          const actsRes = await Promise.all(
+            activityIds.map((id) => api.get(`/activities/${id}`))
+          );
+          if (isMounted) setActivities(actsRes.map((r) => r.data));
+        } else {
+          if (isMounted) setActivities([]);
+        }
+      } catch (err) {
+        console.error('Failed to load review details:', err);
+      } finally {
+        if (isMounted) setLoadingData(false);
+      }
+    };
+
+    fetchPackageAndActivities();
+    return () => {
+      isMounted = false;
+    };
+  }, [packageId, activityIds]);
 
   // Promo code local input state
   const [promoInput, setPromoInput] = useState(discountCode || '');
@@ -87,6 +124,20 @@ export function Step4ReviewPayment({ onBack }: { onBack: () => void }) {
       : `book_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   }
 
+  // Pre-calculated estimates for review display
+  const packageTotal = pkg ? (pkg.priceAdult * headCountAdult) + (pkg.priceChild * headCountChild) : 0;
+  let activitiesTotal = 0;
+  activities.forEach((act) => {
+    if (act.pricingType === 'PER_PERSON') {
+      activitiesTotal += act.price * (headCountAdult + headCountChild);
+    } else {
+      activitiesTotal += act.price;
+    }
+  });
+  const subtotalEstimate = packageTotal + activitiesTotal;
+  const discountEstimate = appliedDiscount ? appliedDiscount.discountAmount : 0;
+  const totalEstimate = Math.max(0, subtotalEstimate - discountEstimate);
+
   // Helper to ensure booking is created only ONCE per session
   const getOrCreateBooking = async () => {
     if (createdBooking) return createdBooking;
@@ -118,8 +169,37 @@ export function Step4ReviewPayment({ onBack }: { onBack: () => void }) {
       },
     });
 
-    setCreatedBooking(bookingRes.data);
-    return bookingRes.data;
+    const data = bookingRes.data;
+    setCreatedBooking(data);
+
+    // Persist non-sensitive confirmation details in sessionStorage for the success receipt
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem(
+          'rm_last_booking',
+          JSON.stringify({
+            bookingNumber: data.bookingNumber,
+            bookingId: data.id,
+            packageName: data.package?.name || pkg?.name || 'Day Tourism Package',
+            dateStr: date ? format(new Date(date), 'dd MMMM yyyy') : '',
+            headCountAdult,
+            headCountChild,
+            guestName: customerDetails?.name || 'Guest',
+            guestPhone: customerDetails?.phone || '',
+            guestEmail: customerDetails?.email || '',
+            totalAmount: data.totalAmount ?? totalEstimate,
+            subtotalAmount: data.subtotalAmount ?? subtotalEstimate,
+            discountAmount: data.discountAmount ?? discountEstimate,
+            discountCode: data.discountCode || appliedDiscount?.code || '',
+            advanceRequired: data.advanceRequired ?? 0,
+          })
+        );
+      } catch (storageErr) {
+        console.warn('Could not cache booking summary in sessionStorage', storageErr);
+      }
+    }
+
+    return data;
   };
 
   const isSubmittingRef = useRef(false);
@@ -133,7 +213,7 @@ export function Step4ReviewPayment({ onBack }: { onBack: () => void }) {
 
       const booking = await getOrCreateBooking();
 
-      const packageName = booking.package?.name || 'Day Tourism Package';
+      const packageName = booking.package?.name || pkg?.name || 'Day Tourism Package';
       const dateStr = date ? format(new Date(date), 'dd MMMM yyyy') : '';
 
       const waUrl = buildWhatsAppMessageUrl({
@@ -144,7 +224,7 @@ export function Step4ReviewPayment({ onBack }: { onBack: () => void }) {
         headCountChild,
         guestName: customerDetails?.name || 'Guest',
         guestPhone: customerDetails?.phone || '',
-        totalAmount: booking.totalAmount || 0,
+        totalAmount: booking.totalAmount || totalEstimate,
       });
 
       // Open WhatsApp in new window
@@ -202,7 +282,7 @@ export function Step4ReviewPayment({ onBack }: { onBack: () => void }) {
               razorpaySignature: response.razorpay_signature,
             });
             reset();
-            window.location.href = `/booking/success?bookingId=${booking.id}`;
+            window.location.href = `/booking/success?bookingId=${booking.id}&bookingNumber=${booking.bookingNumber}`;
           } catch (err) {
             setError(getApiErrorMessage(err, 'Payment verification failed. Please contact support.'));
             setLoading(false);
@@ -232,105 +312,241 @@ export function Step4ReviewPayment({ onBack }: { onBack: () => void }) {
     }
   };
 
+  // ================= SUBMISSION SUCCESS VIEW =================
   if (isSubmitted && createdBooking) {
     const waUrl = buildWhatsAppMessageUrl({
       bookingNumber: createdBooking.bookingNumber,
-      packageName: createdBooking.package?.name || 'Day Tourism Package',
+      packageName: createdBooking.package?.name || pkg?.name || 'Day Tourism Package',
       dateStr: date ? format(new Date(date), 'dd MMMM yyyy') : '',
       headCountAdult,
       headCountChild,
       guestName: customerDetails?.name || 'Guest',
       guestPhone: customerDetails?.phone || '',
-      totalAmount: createdBooking.totalAmount || 0,
+      totalAmount: createdBooking.totalAmount || totalEstimate,
     });
 
     return (
-      <div className="space-y-6 text-center py-6 animate-in fade-in duration-500">
-        <div className="w-16 h-16 mx-auto bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 mb-2">
+      <div className="space-y-6 text-center py-6 animate-in fade-in duration-500 max-w-xl mx-auto">
+        <div className="w-16 h-16 mx-auto bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 mb-2 shadow-sm">
           <CheckCircle className="w-10 h-10" />
         </div>
 
-        <h2 className="text-2xl md:text-3xl font-serif text-[#1E3F20] font-bold">Your Booking Request is Sent!</h2>
+        <div className="space-y-1">
+          <h2 className="text-2xl md:text-3xl font-serif text-[#1E3F20] font-bold">Your Booking Request is Sent!</h2>
+          <p className="text-xs text-gray-500">
+            Request registered on our system. We will confirm date availability prior to payment.
+          </p>
+        </div>
 
-        <div className="bg-[#1E3F20]/5 border border-[#D4AF37]/30 rounded-2xl p-6 text-left max-w-md mx-auto space-y-3 text-sm">
-          <div className="flex justify-between border-b pb-2">
-            <span className="text-gray-500">Booking Reference</span>
-            <span className="font-mono font-bold text-[#1E3F20]">{createdBooking.bookingNumber}</span>
+        {/* Authoritative Details Box */}
+        <div className="bg-[#FAF9F6] border border-[#D4AF37]/40 rounded-2xl p-6 text-left space-y-3 text-sm shadow-sm">
+          <div className="flex justify-between border-b border-gray-200 pb-2.5">
+            <span className="text-gray-500 text-xs uppercase tracking-wider font-semibold">Booking Reference</span>
+            <span className="font-mono font-bold text-[#1E3F20] text-base">{createdBooking.bookingNumber}</span>
           </div>
-          <div className="flex justify-between border-b pb-2">
+
+          <div className="flex justify-between border-b border-gray-100 pb-2">
             <span className="text-gray-500">Package</span>
-            <span className="font-semibold text-gray-800">{createdBooking.package?.name}</span>
+            <span className="font-semibold text-gray-800 text-right">{createdBooking.package?.name || pkg?.name}</span>
           </div>
-          <div className="flex justify-between border-b pb-2">
-            <span className="text-gray-500">Date</span>
-            <span className="font-semibold text-gray-800">{date ? format(new Date(date), 'dd MMM yyyy') : ''}</span>
+
+          <div className="flex justify-between border-b border-gray-100 pb-2">
+            <span className="text-gray-500">Visit Date</span>
+            <span className="font-semibold text-gray-800">{date ? format(new Date(date), 'dd MMMM yyyy') : ''}</span>
           </div>
-          <div className="flex justify-between border-b pb-2">
+
+          <div className="flex justify-between border-b border-gray-100 pb-2">
             <span className="text-gray-500">Guests</span>
-            <span className="font-semibold text-gray-800">{headCountAdult} Adults, {headCountChild} Children</span>
+            <span className="font-semibold text-gray-800">{headCountAdult} Adults{headCountChild > 0 ? `, ${headCountChild} Children` : ''}</span>
+          </div>
+
+          <div className="flex justify-between border-b border-gray-100 pb-2">
+            <span className="text-gray-500">Guest Name</span>
+            <span className="font-semibold text-gray-800">{customerDetails?.name}</span>
+          </div>
+
+          <div className="flex justify-between border-b border-gray-100 pb-2">
+            <span className="text-gray-500">WhatsApp Phone</span>
+            <span className="font-semibold text-gray-800">{customerDetails?.phone}</span>
           </div>
 
           {createdBooking.discountAmount > 0 && (
             <>
-              <div className="flex justify-between border-b pb-2 text-xs">
+              <div className="flex justify-between border-b border-gray-100 pb-2 text-xs">
                 <span className="text-gray-500">Subtotal</span>
                 <span className="font-semibold text-gray-800">₹{createdBooking.subtotalAmount?.toLocaleString('en-IN')}</span>
               </div>
-              <div className="flex justify-between border-b pb-2 text-xs text-emerald-700">
-                <span>Discount ({createdBooking.discountCode})</span>
+              <div className="flex justify-between border-b border-gray-100 pb-2 text-xs text-emerald-700">
+                <span>Offer Savings ({createdBooking.discountCode})</span>
                 <span className="font-semibold">-₹{createdBooking.discountAmount?.toLocaleString('en-IN')}</span>
               </div>
             </>
           )}
 
-          <div className="flex justify-between pt-1">
-            <span className="text-gray-500">Estimated Total</span>
-            <span className="font-bold text-[#1E3F20] text-base">₹{createdBooking.totalAmount?.toLocaleString('en-IN')}</span>
+          <div className="flex justify-between pt-1 items-baseline">
+            <div>
+              <span className="text-xs uppercase tracking-wider font-semibold text-gray-500 block">Total Amount</span>
+              <span className="text-[10px] text-gray-400">Taxes included</span>
+            </div>
+            <span className="font-bold text-[#1E3F20] text-xl">₹{createdBooking.totalAmount?.toLocaleString('en-IN')}</span>
           </div>
         </div>
 
-        <p className="text-sm text-gray-600 max-w-md mx-auto leading-relaxed">
-          Our team will confirm date availability and contact you on WhatsApp with manual payment instructions.
-        </p>
+        {/* 4-Step Next Steps Roadmap */}
+        <div className="bg-white border border-gray-200 rounded-2xl p-5 text-left space-y-3">
+          <p className="text-xs font-bold uppercase tracking-wider text-[#1E3F20] flex items-center gap-1.5">
+            <HelpCircle className="w-4 h-4 text-[#D4AF37]" /> What Happens Next?
+          </p>
+          <ol className="space-y-2 text-xs text-gray-600 list-decimal pl-4 leading-relaxed">
+            <li><strong className="text-gray-900">Availability Check:</strong> Our resort manager verifies dates and capacity.</li>
+            <li><strong className="text-gray-900">Concierge WhatsApp:</strong> We will reach out to you on WhatsApp to confirm your schedule.</li>
+            <li><strong className="text-gray-900">Payment Instructions:</strong> Official UPI & bank transfer details will be provided upon approval.</li>
+            <li><strong className="text-gray-900">Final Confirmation:</strong> Your booking is confirmed as soon as payment is verified.</li>
+          </ol>
+        </div>
 
-        <div className="pt-4 flex flex-col gap-3 max-w-xs mx-auto">
+        {/* Actions */}
+        <div className="pt-2 flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
           <a
             href={waUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="w-full py-3.5 bg-[#25D366] text-white rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-[#1EBE5B] transition-colors flex items-center justify-center gap-2 shadow-md"
+            className="flex-1 py-3.5 bg-[#25D366] text-white rounded-xl font-bold uppercase tracking-wider text-xs hover:bg-[#1EBE5B] transition-colors flex items-center justify-center gap-2 shadow-md"
           >
             <MessageSquare className="w-4 h-4" /> Re-open WhatsApp Message
           </a>
-          <button
-            onClick={() => {
-              reset();
-              window.location.href = '/';
-            }}
-            className="w-full py-3 border border-gray-300 rounded-xl text-gray-700 font-bold uppercase tracking-widest text-xs hover:bg-gray-50 transition-colors"
+          <Link
+            href={`/booking/success?bookingNumber=${createdBooking.bookingNumber}&bookingId=${createdBooking.id}`}
+            className="py-3.5 px-4 bg-[#1E3F20] text-white rounded-xl font-bold uppercase tracking-wider text-xs hover:bg-[#2A522C] transition-colors flex items-center justify-center gap-1.5"
           >
-            Return to Home
-          </button>
+            View Receipt
+          </Link>
         </div>
+
+        <button
+          onClick={() => {
+            reset();
+            window.location.href = '/';
+          }}
+          className="text-xs text-gray-500 hover:text-gray-800 underline block mx-auto pt-2"
+        >
+          Return to Home
+        </button>
       </div>
     );
   }
 
+  // ================= MAIN STEP 4 VIEW =================
   return (
     <div className="space-y-8 text-center py-4">
-      <div className="w-16 h-16 mx-auto bg-[#D4AF37]/10 rounded-full flex items-center justify-center mb-4">
+      <div className="w-16 h-16 mx-auto bg-[#D4AF37]/10 rounded-full flex items-center justify-center mb-2">
         <ShieldCheck className="w-8 h-8 text-[#D4AF37]" />
       </div>
 
-      <div className="space-y-2 text-center">
+      <div className="space-y-2 text-center max-w-xl mx-auto">
         <h2 className="text-2xl md:text-3xl font-serif text-[#1E3F20] font-bold">4. Review & Booking Request</h2>
-        <p className="text-sm text-gray-500 font-light max-w-md mx-auto">
-          Review your reservation details on the right and continue on WhatsApp for concierge confirmation & payment details.
+        <p className="text-sm text-gray-600 font-light leading-relaxed">
+          Please review your booking details below. When ready, click <strong>Continue on WhatsApp</strong> to send your prefilled reservation request to our concierge.
         </p>
       </div>
 
+      {/* Embedded Reservation Summary Card (Essential for Mobile users who don't see desktop sidebar) */}
+      <div className="max-w-xl mx-auto bg-white border border-[#D4AF37]/40 rounded-2xl p-5 shadow-sm text-left space-y-4">
+        <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+          <span className="text-xs font-bold uppercase tracking-wider text-[#1E3F20]">Reservation Summary</span>
+          <span className="text-[11px] bg-[#1E3F20]/10 text-[#1E3F20] px-2 py-0.5 rounded-full font-medium">
+            {type.replace(/_/g, ' ')}
+          </span>
+        </div>
+
+        {/* Details Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-gray-700">
+          <div className="flex items-start gap-2 bg-[#FAF9F6] p-2.5 rounded-xl">
+            <Calendar className="w-4 h-4 text-[#D4AF37] mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-[10px] text-gray-400 uppercase font-semibold">Visit Date</p>
+              <p className="font-bold text-[#1E3F20]">{date ? format(new Date(date), 'EEE, dd MMM yyyy') : 'Not selected'}</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-2 bg-[#FAF9F6] p-2.5 rounded-xl">
+            <Users className="w-4 h-4 text-[#D4AF37] mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-[10px] text-gray-400 uppercase font-semibold">Guests</p>
+              <p className="font-bold text-[#1E3F20]">{headCountAdult} Adults{headCountChild > 0 ? `, ${headCountChild} Children` : ''}</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-2 bg-[#FAF9F6] p-2.5 rounded-xl">
+            <User className="w-4 h-4 text-[#D4AF37] mt-0.5 flex-shrink-0" />
+            <div className="truncate">
+              <p className="text-[10px] text-gray-400 uppercase font-semibold">Contact Name</p>
+              <p className="font-bold text-gray-900 truncate">{customerDetails?.name || 'Guest'}</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-2 bg-[#FAF9F6] p-2.5 rounded-xl">
+            <Phone className="w-4 h-4 text-[#25D366] mt-0.5 flex-shrink-0" />
+            <div className="truncate">
+              <p className="text-[10px] text-gray-400 uppercase font-semibold">WhatsApp Number</p>
+              <p className="font-bold text-gray-900 truncate">{customerDetails?.phone || 'Not provided'}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Selected Package Line */}
+        <div className="border-t border-gray-100 pt-3 space-y-2">
+          <div className="flex justify-between text-xs">
+            <span className="font-semibold text-gray-800">{pkg?.name || 'Selected Package'}</span>
+            <span className="font-bold text-[#1E3F20]">₹{packageTotal.toLocaleString('en-IN')}</span>
+          </div>
+
+          {/* Add-ons if any */}
+          {activities.length > 0 && (
+            <div className="space-y-1 pt-1">
+              <p className="text-[10px] uppercase font-bold text-gray-400">Add-ons</p>
+              {activities.map((act) => {
+                const isPerPerson = act.pricingType === 'PER_PERSON';
+                const cost = isPerPerson ? act.price * (headCountAdult + headCountChild) : act.price;
+                return (
+                  <div key={act.id} className="flex justify-between text-xs text-gray-600">
+                    <span className="truncate pr-2">{act.name}</span>
+                    <span className="font-medium whitespace-nowrap">₹{cost.toLocaleString('en-IN')}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Subtotal & Discount Breakdown */}
+          {appliedDiscount && (
+            <div className="pt-2 border-t border-dashed border-gray-200 space-y-1 text-xs">
+              <div className="flex justify-between text-gray-500">
+                <span>Subtotal</span>
+                <span>₹{subtotalEstimate.toLocaleString('en-IN')}</span>
+              </div>
+              <div className="flex justify-between text-emerald-700 font-semibold">
+                <span>Offer Savings ({appliedDiscount.code})</span>
+                <span>-₹{discountEstimate.toLocaleString('en-IN')}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Total */}
+          <div className="pt-3 border-t border-gray-200 flex justify-between items-baseline">
+            <div>
+              <span className="text-xs uppercase font-bold text-gray-500 block">Total Payable</span>
+              <span className="text-[10px] text-gray-400">Inclusive of all applicable resort taxes</span>
+            </div>
+            <span className="text-xl font-serif font-bold text-[#1E3F20]">
+              ₹{totalEstimate.toLocaleString('en-IN')}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Promo Code Section */}
-      <div className="max-w-md mx-auto bg-white border border-[#D4AF37]/30 p-4 rounded-2xl shadow-sm text-left space-y-3">
+      <div className="max-w-xl mx-auto bg-white border border-[#D4AF37]/30 p-4 rounded-2xl shadow-sm text-left space-y-3">
         <div className="flex items-center gap-2 text-sm font-semibold text-[#1E3F20]">
           <Tag className="w-4 h-4 text-[#D4AF37]" />
           <span>Have a Promo / Coupon Code?</span>
@@ -380,16 +596,32 @@ export function Step4ReviewPayment({ onBack }: { onBack: () => void }) {
         )}
       </div>
 
-      <div className="max-w-md mx-auto space-y-4 pt-2">
+      {/* Transparent Booking Process Notice */}
+      <div className="max-w-xl mx-auto bg-amber-50/60 border border-amber-200/80 rounded-2xl p-4 text-left text-xs text-amber-900 space-y-1.5">
+        <p className="font-bold flex items-center gap-1.5 text-amber-950">
+          <ShieldCheck className="w-4 h-4 text-amber-700" /> Transparent Booking Commitment
+        </p>
+        <p className="text-[11px] text-amber-800 leading-relaxed">
+          Opening WhatsApp connects you directly with our resort concierge. <strong>No payment is taken at this moment.</strong> Our team confirms date availability with our property team first, then shares verified payment options (UPI / NetBanking).
+        </p>
+      </div>
+
+      {/* Submission Actions */}
+      <div className="max-w-xl mx-auto space-y-4 pt-2">
         {loading ? (
           <div className="space-y-4 py-8">
             <Loader2 className="w-8 h-8 text-[#D4AF37] animate-spin mx-auto" />
-            <p className="text-[#1E3F20] font-medium text-sm">Preparing your booking request...</p>
+            <p className="text-[#1E3F20] font-medium text-sm">Registering your booking request...</p>
           </div>
         ) : error ? (
           <div className="space-y-4">
-            <div className="p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm font-medium">
-              {error}
+            <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm font-medium flex items-start gap-2 text-left">
+              <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">Submission Error</p>
+                <p className="text-xs">{error}</p>
+                <p className="text-[11px] text-gray-500 mt-1">Your entered details have been preserved. You can safely try again.</p>
+              </div>
             </div>
             <button
               onClick={handleWhatsAppBooking}
@@ -453,4 +685,5 @@ export function Step4ReviewPayment({ onBack }: { onBack: () => void }) {
     </div>
   );
 }
+
 

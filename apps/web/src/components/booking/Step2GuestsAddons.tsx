@@ -13,13 +13,22 @@ interface Activity {
 }
 
 export function Step2GuestsAddons({ onNext, onBack }: { onNext: () => void, onBack: () => void }) {
-  const { date, type, headCountAdult, headCountChild, setGuests, activityIds, toggleActivity } = useBookingStore();
+  const { date, type, packageId, headCountAdult, headCountChild, setGuests, activityIds, toggleActivity } = useBookingStore();
   
+  const [pkg, setPkg] = useState<any>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loadingActivities, setLoadingActivities] = useState(true);
   
   const [loadingNext, setLoadingNext] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (packageId) {
+      api.get(`/packages/${packageId}`)
+        .then(res => setPkg(res.data))
+        .catch(err => console.error('Failed to load selected package:', err));
+    }
+  }, [packageId]);
 
   useEffect(() => {
     const fetchActivities = async () => {
@@ -36,16 +45,31 @@ export function Step2GuestsAddons({ onNext, onBack }: { onNext: () => void, onBa
     fetchActivities();
   }, []);
 
+  const totalGuests = headCountAdult + headCountChild;
+  const isBelowMin = Boolean(pkg?.minGuests && totalGuests < pkg.minGuests);
+  const isAboveMax = Boolean(pkg?.maxGuests && totalGuests > pkg.maxGuests);
+
   const handleNext = async () => {
     if (!date) return;
-    setLoadingNext(true);
     setError('');
+
+    if (isBelowMin) {
+      setError(`A minimum of ${pkg.minGuests} guests is required for '${pkg.name}'. Currently: ${totalGuests} guests.`);
+      return;
+    }
+
+    if (isAboveMax) {
+      setError(`Maximum allowed for '${pkg.name}' is ${pkg.maxGuests} guests.`);
+      return;
+    }
+
+    setLoadingNext(true);
 
     try {
       const response = await api.post('/bookings/check-availability', {
         date: date.toISOString(),
         type,
-        guests: headCountAdult + headCountChild
+        guests: totalGuests,
       });
 
       if (response.data && response.data.available !== false) { 
@@ -125,6 +149,25 @@ export function Step2GuestsAddons({ onNext, onBack }: { onNext: () => void, onBa
             </div>
           </div>
         </div>
+        {pkg && (
+          <div className="p-3 bg-[#FAF9F6] border border-[#D4AF37]/30 rounded-xl max-w-sm flex items-center justify-between text-xs">
+            <div>
+              <p className="font-bold text-[#1E3F20]">{pkg.name}</p>
+              <p className="text-gray-500">
+                Min: {pkg.minGuests || 1} {pkg.maxGuests ? `• Max: ${pkg.maxGuests}` : ''}
+              </p>
+            </div>
+            <span className="font-semibold text-[#1E3F20] bg-white px-2 py-1 rounded-md border border-gray-200">
+              {totalGuests} {totalGuests === 1 ? 'Guest' : 'Guests'}
+            </span>
+          </div>
+        )}
+
+        {isBelowMin && (
+          <div className="p-3 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl text-xs max-w-sm">
+            Please add at least {pkg.minGuests - totalGuests} more {pkg.minGuests - totalGuests === 1 ? 'guest' : 'guests'} to meet the minimum requirement ({pkg.minGuests} guests) for {pkg.name}.
+          </div>
+        )}
       </div>
 
       <div className="pt-4 border-t border-gray-100">
@@ -200,13 +243,15 @@ export function Step2GuestsAddons({ onNext, onBack }: { onNext: () => void, onBa
         </button>
         <button 
           onClick={handleNext}
-          disabled={loadingNext || headCountAdult < 1}
+          disabled={loadingNext || headCountAdult < 1 || isBelowMin}
           className="w-2/3 py-4 bg-[#1E3F20] rounded-xl text-white font-bold tracking-widest uppercase text-xs disabled:opacity-50 hover:bg-[#D4AF37] transition-colors duration-300 shadow-md flex justify-center items-center gap-2"
         >
           {loadingNext ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin" /> Checking...
+              <Loader2 className="w-4 h-4 animate-spin" /> Verifying...
             </>
+          ) : isBelowMin ? (
+            `Min ${pkg?.minGuests} Guests Required`
           ) : (
             'Continue to Details'
           )}

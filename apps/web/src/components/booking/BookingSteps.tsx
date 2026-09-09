@@ -18,6 +18,7 @@ export function BookingSteps() {
   const [step, setStep] = useState(1);
   const searchParams = useSearchParams();
   const setType = useBookingStore(state => state.setType);
+  const setPackage = useBookingStore(state => state.setPackage);
 
   useEffect(() => {
     const typeParam = searchParams.get('type');
@@ -27,7 +28,11 @@ export function BookingSteps() {
         setType(normalizedType);
       }
     }
-  }, [searchParams, setType]);
+    const packageParam = searchParams.get('packageId');
+    if (packageParam && !isNaN(Number(packageParam))) {
+      setPackage(Number(packageParam));
+    }
+  }, [searchParams, setType, setPackage]);
 
   const totalSteps = 4; // 4 simple steps
 

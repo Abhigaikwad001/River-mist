@@ -20,6 +20,12 @@ export const WHATSAPP_BOOKING_NUMBER = normalizeWhatsAppNumber(
   process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '919322759343'
 );
 
+export const CONTACT_CONFIG = {
+  phone: '+91 93227 59343',
+  email: 'info@rivermistresort.com',
+  whatsapp: WHATSAPP_BOOKING_NUMBER,
+};
+
 export interface WhatsAppBookingPayload {
   bookingNumber: string;
   packageName: string;

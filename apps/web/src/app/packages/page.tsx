@@ -118,7 +118,9 @@ export default function PackagesPage() {
             {packages.map((pkg, index) => {
               const isHighlight = index % 2 !== 0; // Highlight every second package slightly differently
               const isWedding = pkg.experienceType === 'WEDDING' || pkg.experienceType === 'DESTINATION_WEDDING';
-              const linkHref = isWedding ? `/weddings/quote?packageId=${pkg.id}` : `/booking?type=${pkg.experienceType?.toLowerCase() || ''}`;
+              const linkHref = isWedding 
+                ? `/weddings/quote?packageId=${pkg.id}` 
+                : `/booking?type=${pkg.experienceType?.toLowerCase() || ''}&packageId=${pkg.id}`;
               const linkText = isWedding ? 'Plan Your Wedding' : `Book ${pkg.name}`;
               
               const inclusionsList = Array.isArray(pkg.inclusions) && pkg.inclusions.length > 0 
