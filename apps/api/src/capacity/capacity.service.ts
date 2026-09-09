@@ -1,6 +1,7 @@
 import { Injectable, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { BookingStatus, Prisma } from '@prisma/client';
+import { normalizeToIstDateRange } from '../common/utils/date.util';
 
 export const ACTIVE_BOOKING_STATUSES = [
   BookingStatus.REQUESTED,
@@ -15,14 +16,10 @@ export class CapacityService {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * Get availability report for a specific date
+   * Get availability report for a specific date in Indian Standard Time (IST)
    */
   async getAvailabilityReport(dateString: string) {
-    const date = new Date(dateString);
-    date.setUTCHours(0, 0, 0, 0);
-
-    const nextDate = new Date(date);
-    nextDate.setDate(nextDate.getDate() + 1);
+    const { startOfDay, endOfDay, dateStr } = normalizeToIstDateRange(dateString);
 
     const resources = await this.prisma.resource.findMany({
       where: { active: true },
@@ -31,14 +28,14 @@ export class CapacityService {
     const report = [];
 
     for (const resource of resources) {
-      // Find all active bookings using this resource on the given date
+      // Find all active bookings using this resource on the given date (within IST day boundaries)
       const consumed = await this.prisma.bookingResource.aggregate({
         where: {
           resourceId: resource.id,
           booking: {
             date: {
-              gte: date,
-              lt: nextDate,
+              gte: startOfDay,
+              lt: endOfDay,
             },
             status: {
               in: ACTIVE_BOOKING_STATUSES,
@@ -60,8 +57,8 @@ export class CapacityService {
           resourceId: resource.id,
           booking: {
             date: {
-              gte: date,
-              lt: nextDate,
+              gte: startOfDay,
+              lt: endOfDay,
             },
             status: {
               in: ACTIVE_BOOKING_STATUSES,
@@ -83,24 +80,23 @@ export class CapacityService {
     }
 
     return {
-      date: dateString,
+      date: dateStr,
       resources: report,
     };
   }
 
   /**
-   * Internal method to check and lock capacity during a transaction
+   * Internal method to check and lock capacity during a transaction using IST boundaries
    * @param tx Prisma transaction client
+   * @param date Target visit date (Date object or string)
+   * @param resourceRequirements Resource IDs and quantities required
    */
   async validateAndLockCapacity(
     tx: Prisma.TransactionClient,
-    date: Date,
+    date: Date | string,
     resourceRequirements: { resourceId: number; quantity: number }[]
   ) {
-    const checkDate = new Date(date);
-    checkDate.setUTCHours(0, 0, 0, 0);
-    const nextDate = new Date(checkDate);
-    nextDate.setDate(nextDate.getDate() + 1);
+    const { startOfDay, endOfDay } = normalizeToIstDateRange(date);
 
     for (const req of resourceRequirements) {
       // Lock the resource row to prevent concurrent modifications
@@ -114,14 +110,14 @@ export class CapacityService {
 
       const capacity = resource[0].capacity;
 
-      // Sum existing capacity consumed
+      // Sum existing capacity consumed within the authoritative IST day window
       const consumed = await tx.bookingResource.aggregate({
         where: {
           resourceId: req.resourceId,
           booking: {
             date: {
-              gte: checkDate,
-              lt: nextDate,
+              gte: startOfDay,
+              lt: endOfDay,
             },
             status: {
               in: ACTIVE_BOOKING_STATUSES,
