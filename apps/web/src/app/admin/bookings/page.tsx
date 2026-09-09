@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { 
   Search, Filter, Eye, Check, X, IndianRupee, 
   QrCode, Send, MessageSquare, ExternalLink, 
@@ -8,11 +9,21 @@ import {
 } from 'lucide-react';
 import api, { getApiErrorMessage } from '@/lib/api';
 
-export default function BookingsManagement() {
+function BookingsManagementContent() {
+  const searchParams = useSearchParams();
+  const tabs = ['ALL', 'REQUESTED', 'APPROVED', 'PAYMENT_PENDING', 'CONFIRMED', 'CANCELLED'];
+
   const [activeTab, setActiveTab] = useState('ALL');
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const statusParam = searchParams.get('status');
+    if (statusParam && tabs.includes(statusParam.toUpperCase())) {
+      setActiveTab(statusParam.toUpperCase());
+    }
+  }, [searchParams]);
   
   // Payment Modal State
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -34,8 +45,6 @@ export default function BookingsManagement() {
   // Details Modal State
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [notesInput, setNotesInput] = useState('');
-
-  const tabs = ['ALL', 'REQUESTED', 'APPROVED', 'PAYMENT_PENDING', 'CONFIRMED', 'CANCELLED'];
 
   useEffect(() => {
     fetchBookings();
@@ -814,5 +823,13 @@ export default function BookingsManagement() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function BookingsManagement() {
+  return (
+    <Suspense fallback={<div className="p-8 text-[#1E3F20] font-medium">Loading Bookings Management...</div>}>
+      <BookingsManagementContent />
+    </Suspense>
   );
 }
