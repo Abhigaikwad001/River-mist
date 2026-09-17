@@ -43,14 +43,44 @@ export class BookingsService {
 
     const resourceName = (type === EventType.WEDDING || type === EventType.DESTINATION_WEDDING) ? 'Wedding Lawn' : 'General Day Tourism';
     
-    const resource = report.resources.find(r => r.resourceName === resourceName);
-    if (!resource) {
+    const venueResource = report.resources.find(r => r.resourceName === resourceName);
+    if (!venueResource) {
       return { available: false, message: 'Resource not configured' };
     }
 
+    if (venueResource.remainingCapacity < guests) {
+      return {
+        available: false,
+        remainingCapacity: venueResource.remainingCapacity,
+        message: `Sorry, only ${venueResource.remainingCapacity} spots available for ${resourceName}.`,
+      };
+    }
+
+    // Align with executeCreateBooking: check Dining and Parking if present in capacity report
+    const diningResourceName = 'Main Dining';
+    const diningResource = report.resources.find(r => r.resourceName === diningResourceName);
+    if (diningResource && diningResource.remainingCapacity < guests) {
+      return {
+        available: false,
+        remainingCapacity: diningResource.remainingCapacity,
+        message: `Sorry, only ${diningResource.remainingCapacity} dining spots available for ${diningResourceName}.`,
+      };
+    }
+
+    const parkingResourceName = 'Parking';
+    const estimatedVehicles = Math.ceil(guests / 5);
+    const parkingResource = report.resources.find(r => r.resourceName === parkingResourceName);
+    if (parkingResource && parkingResource.remainingCapacity < estimatedVehicles) {
+      return {
+        available: false,
+        remainingCapacity: parkingResource.remainingCapacity,
+        message: `Sorry, only ${parkingResource.remainingCapacity} parking slots available for ${parkingResourceName} (estimated ${estimatedVehicles} vehicles required).`,
+      };
+    }
+
     return {
-      available: resource.remainingCapacity >= guests,
-      remainingCapacity: resource.remainingCapacity
+      available: true,
+      remainingCapacity: venueResource.remainingCapacity,
     };
   }
 
@@ -170,6 +200,10 @@ export class BookingsService {
     const requiredResources = await this.prisma.resource.findMany({
       where: { name: { in: [resourceName, diningResourceName, parkingResourceName] }, active: true }
     });
+
+    if (!requiredResources.some(r => r.name === resourceName)) {
+      throw new BadRequestException(`Primary venue resource '${resourceName}' is not configured or inactive`);
+    }
 
     const resourceRequirements = requiredResources.map(res => {
       let quantity = totalGuests; // Default for venue and dining

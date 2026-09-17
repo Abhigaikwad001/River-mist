@@ -46,7 +46,12 @@ describe('Pricing Engine (Phase 4)', () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
       resource: {
-        findMany: jest.fn().mockResolvedValue([]),
+        findMany: jest.fn().mockResolvedValue([
+          { id: 1, name: 'General Day Tourism', type: 'CAPACITY', capacity: 200, active: true },
+          { id: 2, name: 'Wedding Lawn', type: 'VENUE', capacity: 500, active: true },
+          { id: 3, name: 'Main Dining', type: 'VENUE', capacity: 100, active: true },
+          { id: 4, name: 'Parking', type: 'FACILITY', capacity: 50, active: true },
+        ]),
       },
       $transaction: jest.fn().mockImplementation(async (callback) => {
         return await callback(tx);

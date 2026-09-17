@@ -1,8 +1,10 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { QuoteStatus } from '@prisma/client';
+import { QuoteStatus, BookingStatus, EventType } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
+import { CapacityService } from '../capacity/capacity.service';
+import { normalizeToIstDateRange } from '../common/utils/date.util';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -11,6 +13,7 @@ export class QuotesService {
     private prisma: PrismaService,
     private notificationsService: NotificationsService,
     private auditService: AuditService,
+    private capacityService: CapacityService,
   ) {}
 
   async createQuote(data: { 
@@ -180,9 +183,59 @@ export class QuotesService {
     if (!quote) throw new BadRequestException('Quote not found');
     if (quote.status !== QuoteStatus.APPROVED) throw new BadRequestException('Quote must be APPROVED before conversion');
     if (quote.bookingId) throw new BadRequestException('Quote is already converted to a booking');
+    if (!quote.guestCount || quote.guestCount < 1) throw new BadRequestException('Quote guest count must be at least 1');
+
+    // Authoritative IST business date normalization
+    const { startOfDay: targetDate } = normalizeToIstDateRange(quote.eventDate);
+
+    // Determine required resources based on event type, venue requirements, dining, and parking
+    let venueName = 'Wedding Lawn';
+    if (quote.venueRequirements?.toLowerCase().includes('hall')) {
+      venueName = 'Wedding Hall';
+    } else if (
+      quote.eventType !== EventType.WEDDING &&
+      quote.eventType !== EventType.DESTINATION_WEDDING &&
+      !quote.venueRequirements?.toLowerCase().includes('lawn')
+    ) {
+      venueName = 'General Day Tourism';
+    }
+
+    const diningResourceName = 'Main Dining';
+    const parkingResourceName = 'Parking';
+    const totalGuests = quote.guestCount;
+    const estimatedVehicles = Math.ceil(totalGuests / 5);
+
+    const requiredResources = await this.prisma.resource.findMany({
+      where: { name: { in: [venueName, diningResourceName, parkingResourceName] }, active: true }
+    });
+
+    let finalResources = [...requiredResources];
+    if (!finalResources.some(r => r.name === venueName)) {
+      const fallbackVenue = await this.prisma.resource.findFirst({
+        where: { name: { in: ['Wedding Lawn', 'General Day Tourism'] }, active: true }
+      });
+      if (fallbackVenue) {
+        finalResources.push(fallbackVenue);
+      }
+    }
+
+    if (finalResources.length === 0 || !finalResources.some(r => ['Wedding Lawn', 'Wedding Hall', 'General Day Tourism'].includes(r.name))) {
+      throw new BadRequestException(`No active venue resource configured for ${quote.eventType}`);
+    }
+
+    const resourceRequirements = finalResources.map(res => {
+      let quantity = totalGuests;
+      if (res.name === parkingResourceName) {
+        quantity = estimatedVehicles;
+      }
+      return { resourceId: res.id, quantity };
+    });
 
     const updatedQuote = await this.prisma.$transaction(async (tx) => {
-      // Find or create a generic custom event package
+      // 1. Check, lock, and validate capacity with blackout and override enforcement
+      await this.capacityService.validateAndLockCapacity(tx, targetDate, resourceRequirements);
+
+      // 2. Find or create a generic custom event package
       let customPackage = await tx.package.findUnique({ where: { slug: 'custom-event' } });
       if (!customPackage) {
         customPackage = await tx.package.create({
@@ -199,27 +252,43 @@ export class QuotesService {
       }
 
       const bookingCount = await tx.booking.count();
-      const bookingNumber = `RM-${new Date().getFullYear()}-${String(bookingCount + 1).padStart(6, '0')}`;
+      let bookingNumber = `RM-${new Date().getFullYear()}-${String(bookingCount + 1).padStart(6, '0')}`;
 
-      // Create Booking
+      // Verification to prevent collision
+      const candidateCollision = await tx.booking.findUnique({ where: { bookingNumber } });
+      if (candidateCollision) {
+        const entropy = Math.floor(1000 + Math.random() * 9000);
+        bookingNumber = `RM-${new Date().getFullYear()}-${String(bookingCount + 1).padStart(4, '0')}-${entropy}`;
+      }
+
+      const resourceConnections = resourceRequirements.map(req => ({
+        resource: { connect: { id: req.resourceId } },
+        quantity: req.quantity
+      }));
+
+      // 3. Create Booking with locked resources and normalized IST date
       const booking = await tx.booking.create({
         data: {
           bookingNumber,
-          date: quote.eventDate,
+          date: targetDate,
           type: quote.eventType,
-          status: 'REQUESTED', // or PAYMENT_PENDING
+          status: BookingStatus.REQUESTED,
           userId: quote.userId,
           packageId: customPackage.id,
           headCountAdult: quote.guestCount,
           headCountChild: 0,
+          subtotalAmount: quote.subtotal,
           totalAmount: quote.total,
           advanceRequired: quote.advanceRequired,
           balanceAmount: quote.total,
-          notes: `Converted from Quote ${quote.quoteNumber}\n\nNotes: ${quote.notes || ''}`
+          notes: `Converted from Quote ${quote.quoteNumber}\n\nNotes: ${quote.notes || ''}`,
+          resources: {
+            create: resourceConnections
+          }
         }
       });
 
-      // Update Quote Status
+      // 4. Update Quote Status
       const converted = await tx.weddingQuote.update({
         where: { id: quoteId },
         data: {
@@ -251,6 +320,16 @@ export class QuotesService {
       include: { user: true }
     });
     if (!quote) throw new BadRequestException('Quote not found');
+
+    if (status === QuoteStatus.CONVERTED) {
+      throw new BadRequestException(
+        'Direct status change to CONVERTED is not allowed. Please use convertQuoteToBooking to validate capacity and generate booking.'
+      );
+    }
+
+    if (quote.status === QuoteStatus.CONVERTED) {
+      throw new BadRequestException('Cannot modify status of an already converted quote');
+    }
 
     const previousStatus = quote.status;
     const updatedQuote = await this.prisma.weddingQuote.update({

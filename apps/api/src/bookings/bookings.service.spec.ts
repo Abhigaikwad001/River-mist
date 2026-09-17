@@ -6,7 +6,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
 import { UpiPaymentQrService } from '../payments/qr/upi-payment-qr.service';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
 import { EventType, BookingStatus } from '@prisma/client';
 
 describe('BookingsService', () => {
@@ -86,7 +86,12 @@ describe('BookingsService', () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
       resource: {
-        findMany: jest.fn().mockResolvedValue([]),
+        findMany: jest.fn().mockResolvedValue([
+          { id: 1, name: 'General Day Tourism', type: 'CAPACITY', capacity: 200, active: true },
+          { id: 2, name: 'Wedding Lawn', type: 'VENUE', capacity: 500, active: true },
+          { id: 3, name: 'Main Dining', type: 'VENUE', capacity: 100, active: true },
+          { id: 4, name: 'Parking', type: 'FACILITY', capacity: 50, active: true },
+        ]),
       },
       user: {
         findUnique: jest.fn().mockResolvedValue({ id: 10, email: 'guest@example.com', name: 'Guest' }),
@@ -752,6 +757,124 @@ describe('BookingsService', () => {
       expect(res.isClosed).toBe(true);
       expect(res.remainingCapacity).toBe(0);
       expect(res.message).toBe('Sorry, River Mist is closed on 2026-09-15 for a private event or maintenance.');
+    });
+
+    it('should return available: false when Main Dining has insufficient capacity even if Venue is available (Step 2 alignment)', async () => {
+      mockCapacityService.getAvailabilityReport.mockResolvedValue({
+        date: '2026-09-15',
+        isClosed: false,
+        closureReason: null,
+        resources: [
+          { resourceName: 'General Day Tourism', remainingCapacity: 100, totalCapacity: 200 },
+          { resourceName: 'Main Dining', remainingCapacity: 5, totalCapacity: 50 },
+          { resourceName: 'Parking', remainingCapacity: 50, totalCapacity: 50 },
+        ],
+      });
+
+      const res = await service.checkCapacity('2026-09-15', 10, EventType.DAY_TOURISM);
+      expect(res.available).toBe(false);
+      expect(res.remainingCapacity).toBe(5);
+      expect(res.message).toBe('Sorry, only 5 dining spots available for Main Dining.');
+    });
+
+    it('should return available: false when Parking has insufficient capacity even if Venue and Dining are available (Step 2 alignment)', async () => {
+      mockCapacityService.getAvailabilityReport.mockResolvedValue({
+        date: '2026-09-15',
+        isClosed: false,
+        closureReason: null,
+        resources: [
+          { resourceName: 'General Day Tourism', remainingCapacity: 100, totalCapacity: 200 },
+          { resourceName: 'Main Dining', remainingCapacity: 100, totalCapacity: 100 },
+          { resourceName: 'Parking', remainingCapacity: 1, totalCapacity: 50 },
+        ],
+      });
+
+      // 10 guests require Math.ceil(10 / 5) = 2 parking slots, but only 1 is available
+      const res = await service.checkCapacity('2026-09-15', 10, EventType.DAY_TOURISM);
+      expect(res.available).toBe(false);
+      expect(res.remainingCapacity).toBe(1);
+      expect(res.message).toBe('Sorry, only 1 parking slots available for Parking (estimated 2 vehicles required).');
+    });
+
+    it('should return available: true when Venue, Main Dining, and Parking all have sufficient capacity (Step 2 alignment)', async () => {
+      mockCapacityService.getAvailabilityReport.mockResolvedValue({
+        date: '2026-09-15',
+        isClosed: false,
+        closureReason: null,
+        resources: [
+          { resourceName: 'General Day Tourism', remainingCapacity: 100, totalCapacity: 200 },
+          { resourceName: 'Main Dining', remainingCapacity: 50, totalCapacity: 100 },
+          { resourceName: 'Parking', remainingCapacity: 20, totalCapacity: 50 },
+        ],
+      });
+
+      const res = await service.checkCapacity('2026-09-15', 10, EventType.DAY_TOURISM);
+      expect(res.available).toBe(true);
+      expect(res.remainingCapacity).toBe(100);
+    });
+  });
+
+  describe('Normal Booking Capacity Enforcement & Resource Alignment', () => {
+    const validBookingDto = {
+      date: '2026-09-15',
+      type: EventType.DAY_TOURISM,
+      packageId: 1,
+      headCountAdult: 2,
+      headCountChild: 0,
+    };
+
+    beforeEach(() => {
+      prisma.package.findUnique.mockResolvedValue({
+        id: 1,
+        name: 'Standard Day Tour',
+        minGuests: 1,
+        priceAdult: 1000,
+        priceChild: 500,
+      });
+      prisma.resource.findMany.mockResolvedValue([
+        { id: 1, name: 'General Day Tourism', type: 'CAPACITY', capacity: 200, active: true },
+        { id: 2, name: 'Main Dining', type: 'VENUE', capacity: 100, active: true },
+        { id: 3, name: 'Parking', type: 'FACILITY', capacity: 50, active: true },
+      ]);
+    });
+
+    it('should invoke validateAndLockCapacity with Venue, Dining, and Parking resources during booking creation', async () => {
+      await service.createBooking(validBookingDto as any, 10);
+
+      expect(mockCapacityService.validateAndLockCapacity).toHaveBeenCalledTimes(1);
+      const [calledTx, calledTargetDate, calledResourceRequirements] =
+        mockCapacityService.validateAndLockCapacity.mock.calls[0];
+      expect(calledTx).toBe(tx);
+      expect(calledResourceRequirements).toEqual([
+        { resourceId: 1, quantity: 2 },
+        { resourceId: 2, quantity: 2 },
+        { resourceId: 3, quantity: 1 }, // ceil(2 / 5) = 1
+      ]);
+    });
+
+    it('should reject booking creation when validateAndLockCapacity throws ConflictException', async () => {
+      mockCapacityService.validateAndLockCapacity.mockRejectedValue(
+        new ConflictException('Sorry, General Day Tourism is fully booked / closed on 2026-09-15.')
+      );
+
+      await expect(service.createBooking(validBookingDto as any, 10)).rejects.toThrow(ConflictException);
+      await expect(service.createBooking(validBookingDto as any, 10)).rejects.toThrow(
+        'Sorry, General Day Tourism is fully booked / closed on 2026-09-15.'
+      );
+      expect(tx.booking.create).not.toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException if primary venue resource is not configured or inactive', async () => {
+      prisma.resource.findMany.mockResolvedValue([
+        { id: 2, name: 'Main Dining', type: 'VENUE', capacity: 100, active: true },
+        { id: 3, name: 'Parking', type: 'FACILITY', capacity: 50, active: true },
+      ]);
+
+      await expect(service.createBooking(validBookingDto as any, 10)).rejects.toThrow(BadRequestException);
+      await expect(service.createBooking(validBookingDto as any, 10)).rejects.toThrow(
+        "Primary venue resource 'General Day Tourism' is not configured or inactive"
+      );
+      expect(tx.booking.create).not.toHaveBeenCalled();
     });
   });
 });
