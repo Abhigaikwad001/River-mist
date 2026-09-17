@@ -28,6 +28,9 @@ export class CapacityService {
     if (startDate && endDate) {
       const startRange = normalizeToIstDateRange(startDate);
       const endRange = normalizeToIstDateRange(endDate);
+      if (startRange.startOfDay > endRange.endOfDay) {
+        throw new BadRequestException('startDate cannot be after endDate');
+      }
       whereClause.date = {
         gte: startRange.startOfDay,
         lt: endRange.endOfDay,
@@ -58,8 +61,10 @@ export class CapacityService {
       throw new BadRequestException('At least one of customCapacity, isClosed, or reason must be provided');
     }
 
-    if (dto.customCapacity !== undefined && dto.customCapacity !== null && dto.customCapacity < 0) {
-      throw new BadRequestException('Capacity must be a non-negative number');
+    if (dto.customCapacity !== undefined && dto.customCapacity !== null) {
+      if (typeof dto.customCapacity !== 'number' || isNaN(dto.customCapacity) || !Number.isInteger(dto.customCapacity) || dto.customCapacity < 0) {
+        throw new BadRequestException('Capacity must be a non-negative integer');
+      }
     }
 
     const { startOfDay, endOfDay, dateStr } = normalizeToIstDateRange(dto.date);
@@ -137,6 +142,10 @@ export class CapacityService {
    * Delete a daily capacity override by ID
    */
   async deleteDailyOverride(id: number, actorUserId?: number) {
+    if (!id || isNaN(id) || id <= 0 || !Number.isInteger(id)) {
+      throw new BadRequestException('Invalid override ID');
+    }
+
     const existing = await this.prisma.dailyCapacityOverride.findUnique({
       where: { id },
     });
@@ -317,7 +326,7 @@ export class CapacityService {
         SELECT * FROM "Resource" WHERE id = ${req.resourceId} FOR UPDATE
       `) as any[];
 
-      if (!resource || resource.length === 0) {
+      if (!resource || resource.length === 0 || !resource[0].active) {
         throw new ConflictException(`Resource with ID ${req.resourceId} not found or inactive`);
       }
 

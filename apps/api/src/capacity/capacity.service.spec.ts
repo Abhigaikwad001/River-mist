@@ -13,6 +13,7 @@ describe('CapacityService (Phase 18B Overrides & Blackout Engine)', () => {
   const sampleResources = [
     { id: 1, name: 'General Day Tourism', type: 'CAPACITY', capacity: 500, active: true },
     { id: 2, name: 'Main Dining', type: 'VENUE', capacity: 200, active: true },
+    { id: 3, name: 'Wedding Lawn', type: 'VENUE', capacity: 1000, active: true },
   ];
 
   beforeEach(async () => {
@@ -72,6 +73,15 @@ describe('CapacityService (Phase 18B Overrides & Blackout Engine)', () => {
       expect(result.resources[0].isAvailable).toBe(true);
       expect(result.resources[0].hasOverride).toBe(false);
     });
+
+    it('accurately calculates remaining capacity when bookings reach capacity', async () => {
+      mockPrisma.bookingResource.aggregate.mockResolvedValueOnce({ _sum: { quantity: 500 } });
+
+      const result = await service.getAvailabilityReport('2026-09-09');
+
+      expect(result.resources[0].remainingCapacity).toBe(0);
+      expect(result.resources[0].isAvailable).toBe(false);
+    });
   });
 
   describe('2. Increased & Decreased Capacity Overrides', () => {
@@ -90,9 +100,11 @@ describe('CapacityService (Phase 18B Overrides & Blackout Engine)', () => {
       expect(result.resources[0].totalCapacity).toBe(700);
       expect(result.resources[0].originalCapacity).toBe(500);
       expect(result.resources[0].remainingCapacity).toBe(550); // 700 - 150
+      expect(result.resources[0].isAvailable).toBe(true);
       expect(result.resources[0].hasOverride).toBe(true);
       // Secondary resources remain at their standard capacity
       expect(result.resources[1].totalCapacity).toBe(200);
+      expect(result.resources[2].totalCapacity).toBe(1000);
     });
 
     it('decreases capacity when customCapacity is less than default (e.g. 50 pax)', async () => {
@@ -108,6 +120,22 @@ describe('CapacityService (Phase 18B Overrides & Blackout Engine)', () => {
       const result = await service.getAvailabilityReport('2026-09-09');
 
       expect(result.resources[0].totalCapacity).toBe(50);
+      expect(result.resources[0].remainingCapacity).toBe(0);
+      expect(result.resources[0].isAvailable).toBe(false);
+    });
+
+    it('handles customCapacity set to 0 (all day tourism closed)', async () => {
+      mockPrisma.dailyCapacityOverride.findFirst.mockResolvedValueOnce({
+        id: 12,
+        date: new Date('2026-09-08T18:30:00.000Z'),
+        customCapacity: 0,
+        isClosed: false,
+        reason: 'VIP group booking reserved all day tourism slots',
+      });
+
+      const result = await service.getAvailabilityReport('2026-09-09');
+
+      expect(result.resources[0].totalCapacity).toBe(0);
       expect(result.resources[0].remainingCapacity).toBe(0);
       expect(result.resources[0].isAvailable).toBe(false);
     });
@@ -131,6 +159,23 @@ describe('CapacityService (Phase 18B Overrides & Blackout Engine)', () => {
       expect(result.resources[0].remainingCapacity).toBe(0);
       expect(result.resources[1].isAvailable).toBe(false);
       expect(result.resources[1].remainingCapacity).toBe(0);
+      expect(result.resources[2].isAvailable).toBe(false);
+      expect(result.resources[2].remainingCapacity).toBe(0);
+    });
+
+    it('falls back to standard reason when isClosed is true but reason is not provided', async () => {
+      mockPrisma.dailyCapacityOverride.findFirst.mockResolvedValueOnce({
+        id: 13,
+        date: new Date('2026-09-08T18:30:00.000Z'),
+        customCapacity: null,
+        isClosed: true,
+        reason: null,
+      });
+
+      const result = await service.getAvailabilityReport('2026-09-09');
+
+      expect(result.isClosed).toBe(true);
+      expect(result.closureReason).toBe('Resort closed for a private booking or maintenance');
     });
 
     it('validateAndLockCapacity throws ConflictException with blackout reason on closed dates', async () => {
@@ -147,6 +192,22 @@ describe('CapacityService (Phase 18B Overrides & Blackout Engine)', () => {
       await expect(
         service.validateAndLockCapacity(mockTx, '2026-09-09', [{ resourceId: 1, quantity: 5 }])
       ).rejects.toThrow('Sorry, River Mist is closed on 2026-09-09: Annual infrastructure maintenance.');
+    });
+
+    it('validateAndLockCapacity throws ConflictException with default message when reason is null', async () => {
+      const mockTx: any = {
+        dailyCapacityOverride: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: 14,
+            isClosed: true,
+            reason: null,
+          }),
+        },
+      };
+
+      await expect(
+        service.validateAndLockCapacity(mockTx, '2026-09-09', [{ resourceId: 1, quantity: 5 }])
+      ).rejects.toThrow('Sorry, River Mist is closed on 2026-09-09 for a private event or maintenance.');
     });
   });
 
@@ -194,6 +255,28 @@ describe('CapacityService (Phase 18B Overrides & Blackout Engine)', () => {
       const result = await service.validateAndLockCapacity(mockTx, '2026-09-09', [{ resourceId: 1, quantity: 50 }]);
       expect(result).toBe(true);
     });
+
+    it('throws clear fully booked error when capacity is 0', async () => {
+      mockTx.dailyCapacityOverride.findFirst.mockResolvedValueOnce({
+        id: 17,
+        customCapacity: 0,
+        isClosed: false,
+      });
+
+      await expect(
+        service.validateAndLockCapacity(mockTx, '2026-09-09', [{ resourceId: 1, quantity: 1 }])
+      ).rejects.toThrow('Sorry, General Day Tourism is fully booked / closed on 2026-09-09.');
+    });
+
+    it('rejects booking when resource is inactive', async () => {
+      mockTx.$queryRaw.mockResolvedValueOnce([
+        { id: 1, name: 'General Day Tourism', type: 'CAPACITY', capacity: 500, active: false },
+      ]);
+
+      await expect(
+        service.validateAndLockCapacity(mockTx, '2026-09-09', [{ resourceId: 1, quantity: 1 }])
+      ).rejects.toThrow('Resource with ID 1 not found or inactive');
+    });
   });
 
   describe('5. IST Date Boundary & Range Accuracy', () => {
@@ -211,6 +294,20 @@ describe('CapacityService (Phase 18B Overrides & Blackout Engine)', () => {
           },
         },
       });
+    });
+
+    it('correctly maps UTC timestamp 2026-09-08T18:30:00.000Z to IST calendar date 2026-09-09', async () => {
+      const edgeDate = new Date('2026-09-08T18:30:00.000Z');
+      const expectedRange = normalizeToIstDateRange(edgeDate);
+
+      expect(expectedRange.dateStr).toBe('2026-09-09');
+    });
+
+    it('correctly maps UTC timestamp 2026-09-08T18:29:59.999Z to IST calendar date 2026-09-08', async () => {
+      const edgeDate = new Date('2026-09-08T18:29:59.999Z');
+      const expectedRange = normalizeToIstDateRange(edgeDate);
+
+      expect(expectedRange.dateStr).toBe('2026-09-08');
     });
   });
 
@@ -299,10 +396,16 @@ describe('CapacityService (Phase 18B Overrides & Blackout Engine)', () => {
     });
   });
 
-  describe('7. Validation on Inputs', () => {
+  describe('7. Validation on Inputs & Range Queries', () => {
     it('throws BadRequestException if customCapacity is negative', async () => {
       await expect(
         service.setDailyOverride({ date: '2026-09-09', customCapacity: -10 })
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException if customCapacity is not an integer', async () => {
+      await expect(
+        service.setDailyOverride({ date: '2026-09-09', customCapacity: 12.5 })
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -310,6 +413,24 @@ describe('CapacityService (Phase 18B Overrides & Blackout Engine)', () => {
       await expect(
         service.setDailyOverride({ date: '2026-09-09' })
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException if date is invalid in setDailyOverride', async () => {
+      await expect(
+        service.setDailyOverride({ date: '2026-02-30', customCapacity: 100 })
+      ).rejects.toThrow('Invalid calendar date: 2026-02-30');
+    });
+
+    it('throws BadRequestException when startDate is after endDate in getDailyOverrides', async () => {
+      await expect(
+        service.getDailyOverrides('2026-09-30', '2026-09-01')
+      ).rejects.toThrow('startDate cannot be after endDate');
+    });
+
+    it('throws BadRequestException when deleting with invalid ID', async () => {
+      await expect(service.deleteDailyOverride(-1, 1)).rejects.toThrow(BadRequestException);
+      await expect(service.deleteDailyOverride(0, 1)).rejects.toThrow(BadRequestException);
+      await expect(service.deleteDailyOverride(NaN, 1)).rejects.toThrow(BadRequestException);
     });
   });
 });

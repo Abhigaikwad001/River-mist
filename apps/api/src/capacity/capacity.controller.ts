@@ -63,7 +63,11 @@ export class CapacityController {
   @Roles(Role.SUPER_ADMIN, Role.BOOKING_MANAGER)
   @Delete('overrides/:id')
   deleteOverride(@Param('id') id: string, @Request() req: any) {
-    return this.capacityService.deleteDailyOverride(Number(id), req.user?.id);
+    const numId = parseInt(id, 10);
+    if (isNaN(numId) || numId <= 0) {
+      throw new BadRequestException('Invalid override ID');
+    }
+    return this.capacityService.deleteDailyOverride(numId, req.user?.id);
   }
 }
 

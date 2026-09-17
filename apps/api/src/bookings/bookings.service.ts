@@ -7,6 +7,7 @@ import { CapacityService } from '../capacity/capacity.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UpiPaymentQrService } from '../payments/qr/upi-payment-qr.service';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
+import { normalizeToIstDateRange } from '../common/utils/date.util';
 
 @Injectable()
 export class BookingsService {
@@ -186,7 +187,7 @@ export class BookingsService {
       throw new BadRequestException(`Minimum ${pkg.minGuests} guests required for this package`);
     }
 
-    const targetDate = new Date(date);
+    const { startOfDay: targetDate } = normalizeToIstDateRange(date);
     
     // Load activities
     let activityConnections: any[] = [];
