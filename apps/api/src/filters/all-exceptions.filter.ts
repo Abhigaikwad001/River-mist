@@ -84,10 +84,26 @@ export class AllExceptionsFilter implements ExceptionFilter {
           message = 'The database service is temporarily busy. Please retry shortly.';
           break;
         }
+        case 'P2021':
+        case 'P2022': {
+          // Database table (P2021) or column (P2022) does not exist (schema mismatch)
+          httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
+          errorName = 'Internal Server Error';
+          message = 'An unexpected database error occurred. Please try again.';
+          this.logger.error(
+            `[${requestId}] Database schema mismatch [${exception.code}]: ${exception.message}`,
+            exception.stack
+          );
+          break;
+        }
         default: {
           httpStatus = HttpStatus.BAD_REQUEST;
           errorName = 'Database Error';
           message = 'Unable to process database operation with the provided data.';
+          this.logger.error(
+            `[${requestId}] Unhandled Prisma known error [${exception.code}]: ${exception.message}`,
+            exception.stack
+          );
           break;
         }
       }

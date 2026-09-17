@@ -109,4 +109,44 @@ describe('AllExceptionsFilter', () => {
       500
     );
   });
+
+  it('should map Prisma P2021 (table not found) and P2022 (column not found) to 500 Internal Server Error without leaking details', () => {
+    const p2022Error = new Prisma.PrismaClientKnownRequestError('The column Activity.category does not exist in the current database.', {
+      code: 'P2022',
+      clientVersion: '7.9.1',
+      meta: { column: 'Activity.category' },
+    });
+
+    filter.catch(p2022Error, mockHost);
+
+    expect(mockHttpAdapter.reply).toHaveBeenCalledWith(
+      mockResponse,
+      expect.objectContaining({
+        statusCode: 500,
+        error: 'Internal Server Error',
+        message: 'An unexpected database error occurred. Please try again.',
+        requestId: 'test-trace-id-123',
+      }),
+      500
+    );
+
+    const p2021Error = new Prisma.PrismaClientKnownRequestError('The table Activity does not exist in the current database.', {
+      code: 'P2021',
+      clientVersion: '7.9.1',
+      meta: { table: 'Activity' },
+    });
+
+    filter.catch(p2021Error, mockHost);
+
+    expect(mockHttpAdapter.reply).toHaveBeenCalledWith(
+      mockResponse,
+      expect.objectContaining({
+        statusCode: 500,
+        error: 'Internal Server Error',
+        message: 'An unexpected database error occurred. Please try again.',
+        requestId: 'test-trace-id-123',
+      }),
+      500
+    );
+  });
 });
