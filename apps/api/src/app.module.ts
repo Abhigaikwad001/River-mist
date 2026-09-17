@@ -25,6 +25,7 @@ import { AuditModule } from './audit/audit.module';
 import { WhatsAppModule } from './whatsapp/whatsapp.module';
 import { HealthModule } from './health/health.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     AuditModule,
     WhatsAppModule,
     HealthModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [

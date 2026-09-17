@@ -75,10 +75,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
             {(userRole === 'SUPER_ADMIN' || userRole === 'EVENT_MANAGER' || userRole === 'BOOKING_MANAGER') && (
               <>
-                <Link href="/admin/packages" className="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-[#2A522C] transition-colors text-sm">
-                  <Package size={18} />
-                  <span>Packages</span>
-                </Link>
                 <Link href="/admin/quotes" className="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-[#2A522C] transition-colors text-sm">
                   <FileText size={18} />
                   <span>Quotes</span>
@@ -90,6 +86,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <Link href="/admin/events" className="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-[#2A522C] transition-colors text-sm">
                   <PartyPopper size={18} />
                   <span>Events</span>
+                </Link>
+                <Link href="/admin/notifications" className="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-[#2A522C] transition-colors text-sm">
+                  <FileText size={18} />
+                  <span>Notifications</span>
                 </Link>
               </>
             )}
@@ -107,6 +107,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <Link href="/admin/discounts" className="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-[#2A522C] transition-colors text-sm">
                   <Tag size={18} />
                   <span>Discounts</span>
+                </Link>
+                <Link href="/admin/packages" className="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-[#2A522C] transition-colors text-sm">
+                  <Package size={18} />
+                  <span>Packages</span>
+                </Link>
+                <Link href="/admin/activities" className="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-[#2A522C] transition-colors text-sm">
+                  <Tent size={18} />
+                  <span>Activities</span>
                 </Link>
               </>
             )}
@@ -126,13 +134,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <span>Website Content</span>
                 </Link>
               </>
-            )}
-
-            {(userRole === 'SUPER_ADMIN' || userRole === 'CONTENT_MANAGER' || userRole === 'EVENT_MANAGER') && (
-              <Link href="/admin/activities" className="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-[#2A522C] transition-colors text-sm">
-                <Tent size={18} />
-                <span>Activities</span>
-              </Link>
             )}
 
             {userRole === 'SUPER_ADMIN' && (

@@ -61,7 +61,8 @@ export default function AdminMediaPage() {
   const [uploadTab, setUploadTab] = useState<'FILE' | 'URL'>('FILE');
   const [editingItem, setEditingItem] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -106,7 +107,8 @@ export default function AdminMediaPage() {
 
   const openAddModal = () => {
     setEditingItem(null);
-    setSelectedFile(null);
+    setSelectedFiles([]);
+    setUploadProgress(0);
     setUploadTab('FILE');
     setFormData({
       title: '',
@@ -124,7 +126,8 @@ export default function AdminMediaPage() {
 
   const openEditModal = (item: any) => {
     setEditingItem(item);
-    setSelectedFile(null);
+    setSelectedFiles([]);
+    setUploadProgress(0);
     setUploadTab('URL');
     setFormData({
       title: item.title || '',
@@ -155,26 +158,32 @@ export default function AdminMediaPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setUploading(true);
+    setUploadProgress(0);
 
     try {
       if (!editingItem && uploadTab === 'FILE') {
-        if (!selectedFile) {
-          alert('Please select a file to upload');
+        if (selectedFiles.length === 0) {
+          alert('Please select files to upload');
           setUploading(false);
           return;
         }
 
-        const uploadData = new FormData();
-        uploadData.append('file', selectedFile);
-        uploadData.append('title', formData.title || selectedFile.name);
-        uploadData.append('altText', formData.altText || selectedFile.name);
-        uploadData.append('description', formData.description);
-        uploadData.append('category', formData.category);
-        uploadData.append('isFeatured', formData.isFeatured ? 'true' : 'false');
+        let completed = 0;
+        for (const file of selectedFiles) {
+          const uploadData = new FormData();
+          uploadData.append('file', file);
+          uploadData.append('title', formData.title || file.name);
+          uploadData.append('altText', formData.altText || file.name);
+          uploadData.append('description', formData.description);
+          uploadData.append('category', formData.category);
+          uploadData.append('isFeatured', formData.isFeatured ? 'true' : 'false');
 
-        await api.post('/media/upload', uploadData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
+          await api.post('/media/upload', uploadData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+          completed++;
+          setUploadProgress(Math.round((completed / selectedFiles.length) * 100));
+        }
       } else if (editingItem) {
         await api.patch(`/media/${editingItem.id}`, formData);
       } else {
@@ -185,9 +194,10 @@ export default function AdminMediaPage() {
       fetchMedia();
     } catch (err: any) {
       console.error(err);
-      alert(err.response?.data?.message || 'Failed to save media asset');
+      alert(err.response?.data?.message || 'Failed to save media asset(s)');
     } finally {
       setUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -645,14 +655,20 @@ export default function AdminMediaPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {!editingItem && uploadTab === 'FILE' ? (
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Select File</label>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Select Files</label>
                   <input
                     type="file"
+                    multiple
                     accept="image/*,video/*"
-                    onChange={e => setSelectedFile(e.target.files?.[0] || null)}
+                    onChange={e => setSelectedFiles(Array.from(e.target.files || []))}
                     className="w-full text-sm border border-gray-200 rounded-xl p-2.5 bg-gray-50 focus:outline-none"
                     required
                   />
+                  {selectedFiles.length > 0 && (
+                    <p className="text-sm text-[#1E3F20] mt-2 font-medium">
+                      {selectedFiles.length} file(s) selected
+                    </p>
+                  )}
                   <p className="text-[11px] text-gray-400 mt-1">
                     Supports JPEG, PNG, WebP, GIF, SVG (Max 10MB) & MP4, WebM (Max 50MB).
                   </p>
@@ -774,21 +790,33 @@ export default function AdminMediaPage() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 items-center">
+                {uploading && uploadTab === 'FILE' && !editingItem && (
+                  <div className="flex-1 mr-4 flex items-center gap-2">
+                    <div className="h-2 flex-1 bg-gray-100 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-[#1E3F20] transition-all duration-300"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                    <span className="text-xs font-semibold text-gray-600">{uploadProgress}%</span>
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
                   className="px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50"
+                  disabled={uploading}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={uploading}
-                  className="px-5 py-2 bg-[#1E3F20] text-white rounded-xl text-sm font-semibold hover:bg-[#2A522C] flex items-center gap-2"
+                  className="px-5 py-2 bg-[#1E3F20] text-white rounded-xl text-sm font-semibold hover:bg-[#2A522C] flex items-center gap-2 disabled:opacity-50"
                 >
                   {uploading && <Loader2 className="animate-spin" size={16} />}
-                  {editingItem ? 'Save Changes' : 'Upload Asset'}
+                  {editingItem ? 'Save Changes' : (uploading ? 'Uploading...' : 'Upload Asset(s)')}
                 </button>
               </div>
             </form>

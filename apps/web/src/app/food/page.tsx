@@ -99,69 +99,87 @@ export default function FoodPage() {
             <p className="text-gray-600 text-sm">Please check back soon for our updated seasonal dining schedule.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
-            {foodItems.map((item) => {
-              const tagsList = Array.isArray(item.tags) ? item.tags : (item.tags ? String(item.tags).split(',') : []);
-              const hasImgError = imgErrors[item.id];
+          <div className="space-y-16">
+            {['THALI', 'A_LA_CARTE', 'BEVERAGE'].map((category) => {
+              const categoryItems = foodItems.filter(item => item.category === category);
+              if (categoryItems.length === 0) return null;
+              
+              const categoryTitle = category === 'THALI' ? 'Signature Thalis' :
+                                    category === 'A_LA_CARTE' ? 'A La Carte & Snacks' :
+                                    'Beverages';
 
               return (
-                <div 
-                  key={item.id} 
-                  className="group bg-white rounded-2xl shadow-sm border border-[#D4AF37]/20 overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1.5 flex flex-col relative"
-                >
-                  {/* Seasonal Badge */}
-                  {item.isSeasonal && (
-                    <div className="absolute top-3 right-3 z-10 bg-[#D4AF37] text-white text-[10px] uppercase tracking-widest font-bold px-3 py-1 rounded-full shadow-md flex items-center gap-1">
-                      <Sparkles size={12} />
-                      {item.seasonalBadge || 'Seasonal Special'}
-                    </div>
-                  )}
+                <div key={category}>
+                  <h2 className="text-3xl font-serif text-[#1E3F20] mb-8 text-center border-b border-[#D4AF37]/20 pb-4 inline-block mx-auto flex justify-center">
+                    {categoryTitle}
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
+                    {categoryItems.map((item) => {
+                      const tagsList = Array.isArray(item.tags) ? item.tags : (item.tags ? String(item.tags).split(',') : []);
+                      const hasImgError = imgErrors[item.id];
 
-                  {/* Image Container */}
-                  <div className="h-52 relative bg-gray-100 overflow-hidden">
-                    {(item.media?.url || item.image) && !hasImgError ? (
-                      <Image 
-                        src={item.media?.url || item.image} 
-                        alt={item.media?.altText || item.name} 
-                        fill 
-                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                        className="object-cover group-hover:scale-105 transition-transform duration-500" 
-                        onError={() => handleImageError(item.id)}
-                      />
-                    ) : (
-                      <div className="absolute inset-0 bg-[#1E3F20]/5 flex flex-col items-center justify-center text-gray-400 p-4 text-center">
-                        <ImageIcon size={40} className="mb-1 text-[#D4AF37]/40" />
-                        <span className="text-xs italic font-serif text-[#1E3F20]/70">{item.name}</span>
-                      </div>
-                    )}
-                    <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-[10px] uppercase tracking-wider font-bold text-[#1E3F20] shadow-sm">
-                      {item.isVeg ? '🟢 Veg' : '🔴 Non-Veg'}
-                    </div>
-                  </div>
-
-                  {/* Card Body */}
-                  <div className="p-6 flex-1 flex flex-col justify-between">
-                    <div>
-                      <h3 className="text-2xl font-serif text-[#1E3F20] group-hover:text-[#D4AF37] transition-colors leading-snug font-bold mb-2">
-                        {item.name}
-                      </h3>
-                      
-                      <p className="text-gray-600 text-sm mb-6 leading-relaxed font-light line-clamp-3">
-                        {item.description}
-                      </p>
-                    </div>
-
-                    {/* Tags Footer */}
-                    <div className="flex flex-wrap gap-1.5 mt-auto pt-4 border-t border-gray-100">
-                      {tagsList.map((tag: string, idx: number) => (
-                        <span 
-                          key={idx} 
-                          className="text-[10px] uppercase tracking-wider font-semibold px-2.5 py-0.5 bg-[#1E3F20]/5 text-[#1E3F20] border border-[#1E3F20]/10 rounded-md"
+                      return (
+                        <div 
+                          key={item.id} 
+                          className="group bg-white rounded-2xl shadow-sm border border-[#D4AF37]/20 overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1.5 flex flex-col relative"
                         >
-                          {tag.trim()}
-                        </span>
-                      ))}
-                    </div>
+                          {/* Seasonal Badge */}
+                          {item.isSeasonal && (
+                            <div className="absolute top-3 right-3 z-10 bg-[#D4AF37] text-white text-[10px] uppercase tracking-widest font-bold px-3 py-1 rounded-full shadow-md flex items-center gap-1">
+                              <Sparkles size={12} />
+                              {item.seasonalBadge || 'Seasonal Special'}
+                            </div>
+                          )}
+
+                          {/* Image Container */}
+                          <div className="h-52 relative bg-gray-100 overflow-hidden">
+                            {(item.media?.url || item.image) && !hasImgError ? (
+                              <Image 
+                                src={item.media?.url || item.image} 
+                                alt={item.media?.altText || item.name} 
+                                fill 
+                                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                                className="object-cover group-hover:scale-105 transition-transform duration-500" 
+                                onError={() => handleImageError(item.id)}
+                              />
+                            ) : (
+                              <div className="absolute inset-0 bg-[#1E3F20]/5 flex flex-col items-center justify-center text-gray-400 p-4 text-center">
+                                <ImageIcon size={40} className="mb-1 text-[#D4AF37]/40" />
+                                <span className="text-xs italic font-serif text-[#1E3F20]/70">{item.name}</span>
+                              </div>
+                            )}
+                            <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-[10px] uppercase tracking-wider font-bold text-[#1E3F20] shadow-sm">
+                              {item.isVeg ? '🟢 Veg' : '🔴 Non-Veg'}
+                            </div>
+                          </div>
+
+                          {/* Card Body */}
+                          <div className="p-6 flex-1 flex flex-col justify-between">
+                            <div>
+                              <h3 className="text-2xl font-serif text-[#1E3F20] group-hover:text-[#D4AF37] transition-colors leading-snug font-bold mb-2">
+                                {item.name}
+                              </h3>
+                              
+                              <p className="text-gray-600 text-sm mb-6 leading-relaxed font-light line-clamp-3">
+                                {item.description}
+                              </p>
+                            </div>
+
+                            {/* Tags Footer */}
+                            <div className="flex flex-wrap gap-1.5 mt-auto pt-4 border-t border-gray-100">
+                              {tagsList.map((tag: string, idx: number) => (
+                                <span 
+                                  key={idx} 
+                                  className="text-[10px] uppercase tracking-wider font-semibold px-2.5 py-0.5 bg-[#1E3F20]/5 text-[#1E3F20] border border-[#1E3F20]/10 rounded-md"
+                                >
+                                  {tag.trim()}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );

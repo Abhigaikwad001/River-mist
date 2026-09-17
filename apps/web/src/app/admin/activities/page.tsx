@@ -280,6 +280,11 @@ export default function AdminActivitiesPage() {
               <div>
                 <label className="block text-sm font-medium mb-1 text-gray-700">Image URL</label>
                 <input type="text" value={formData.image} onChange={e => setFormData({...formData, image: e.target.value})} className="w-full border p-2 rounded-lg" placeholder="https://images.unsplash.com/..." />
+                {formData.image && (
+                  <div className="mt-2 relative h-32 rounded-lg overflow-hidden border border-gray-200">
+                    <img src={formData.image} alt="Preview" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/600x400?text=Invalid+Image+URL' }} />
+                  </div>
+                )}
               </div>
               
               <div className="flex justify-end gap-3 pt-4 border-t mt-4">

@@ -1,0 +1,3 @@
+# 
+
+[{"id":1,"name":"Standard Day Visit","slug":"day-visit-standard","description":"A full day of fun, food, and activities.","experienceType":"DAY_TOURISM","image":null,"priceAdult":1200,"priceChild":800,"minGuests":1,"maxGuests":null,"active":true,"displayOrder":0,"createdAt":"2026-08-26T06:38:12.479Z","updatedAt":"2026-08-26T06:38:12.479Z"},{"id":2,"name":"Premium Day Visit","slug":"day-visit-premium","description":"Includes premium lunch and VIP pool access.","experienceType":"DAY_TOURISM","image":null,"priceAdult":1800,"priceChild":1000,"minGuests":1,"maxGuests":null,"active":true,"displayOrder":0,"createdAt":"2026-08-26T06:38:12.487Z","updatedAt":"2026-08-26T06:38:12.487Z"}]

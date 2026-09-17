@@ -380,3 +380,12 @@ model NotificationLog {
   booking Booking?      @relation(fields: [bookingId], references: [id])
   quote   WeddingQuote? @relation(fields: [quoteId], references: [id])
 }
+
+model Setting {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String   @db.Text
+  type      String   @default("STRING")
+  category  String   @default("GENERAL")
+  updatedAt DateTime @updatedAt
+}

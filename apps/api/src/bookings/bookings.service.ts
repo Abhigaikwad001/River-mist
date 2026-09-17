@@ -29,6 +29,17 @@ export class BookingsService {
    */
   async checkCapacity(date: string, guests: number, type: any) {
     const report = await this.capacityService.getAvailabilityReport(date);
+
+    if (report.isClosed) {
+      const reasonMsg = report.closureReason ? `: ${report.closureReason}` : ' for a private event or maintenance';
+      return {
+        available: false,
+        isClosed: true,
+        message: `Sorry, River Mist is closed on ${report.date}${reasonMsg}.`,
+        remainingCapacity: 0,
+      };
+    }
+
     const resourceName = (type === EventType.WEDDING || type === EventType.DESTINATION_WEDDING) ? 'Wedding Lawn' : 'General Day Tourism';
     
     const resource = report.resources.find(r => r.resourceName === resourceName);

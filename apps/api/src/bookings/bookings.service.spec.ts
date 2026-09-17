@@ -15,6 +15,7 @@ describe('BookingsService', () => {
   let tx: any;
   let mockUpiPaymentQrService: any;
   let mockWhatsAppService: any;
+  let mockCapacityService: any;
 
   const mockAuditService = {
     logAction: jest.fn().mockResolvedValue(undefined),
@@ -99,14 +100,17 @@ describe('BookingsService', () => {
       }),
     };
 
+    mockCapacityService = {
+      validateAndLockCapacity: jest.fn().mockResolvedValue(true),
+      getAvailabilityReport: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         BookingsService,
         {
           provide: CapacityService,
-          useValue: {
-            validateAndLockCapacity: jest.fn().mockResolvedValue(true),
-          },
+          useValue: mockCapacityService,
         },
         {
           provide: PrismaService,
@@ -686,6 +690,68 @@ describe('BookingsService', () => {
           data: { usageCount: { increment: 1 } },
         });
       });
+    });
+  });
+
+  describe('checkCapacity & Blackout Enforcement', () => {
+    it('should return available: true with remaining capacity when open and sufficient', async () => {
+      mockCapacityService.getAvailabilityReport.mockResolvedValue({
+        date: '2026-09-15',
+        isClosed: false,
+        closureReason: null,
+        resources: [
+          { resourceName: 'General Day Tourism', remainingCapacity: 150, totalCapacity: 200 },
+        ],
+      });
+
+      const res = await service.checkCapacity('2026-09-15', 10, EventType.DAY_TOURISM);
+      expect(res.available).toBe(true);
+      expect(res.remainingCapacity).toBe(150);
+    });
+
+    it('should return available: false when guest count exceeds remaining capacity', async () => {
+      mockCapacityService.getAvailabilityReport.mockResolvedValue({
+        date: '2026-09-15',
+        isClosed: false,
+        closureReason: null,
+        resources: [
+          { resourceName: 'General Day Tourism', remainingCapacity: 5, totalCapacity: 200 },
+        ],
+      });
+
+      const res = await service.checkCapacity('2026-09-15', 10, EventType.DAY_TOURISM);
+      expect(res.available).toBe(false);
+      expect(res.remainingCapacity).toBe(5);
+    });
+
+    it('should return available: false, isClosed: true and clear message when date is blacked out with reason', async () => {
+      mockCapacityService.getAvailabilityReport.mockResolvedValue({
+        date: '2026-09-15',
+        isClosed: true,
+        closureReason: 'Monsoon Renovation & Private Event',
+        resources: [],
+      });
+
+      const res = await service.checkCapacity('2026-09-15', 2, EventType.DAY_TOURISM);
+      expect(res.available).toBe(false);
+      expect(res.isClosed).toBe(true);
+      expect(res.remainingCapacity).toBe(0);
+      expect(res.message).toBe('Sorry, River Mist is closed on 2026-09-15: Monsoon Renovation & Private Event.');
+    });
+
+    it('should return available: false, isClosed: true and fallback message when date is blacked out without reason', async () => {
+      mockCapacityService.getAvailabilityReport.mockResolvedValue({
+        date: '2026-09-15',
+        isClosed: true,
+        closureReason: null,
+        resources: [],
+      });
+
+      const res = await service.checkCapacity('2026-09-15', 2, EventType.DAY_TOURISM);
+      expect(res.available).toBe(false);
+      expect(res.isClosed).toBe(true);
+      expect(res.remainingCapacity).toBe(0);
+      expect(res.message).toBe('Sorry, River Mist is closed on 2026-09-15 for a private event or maintenance.');
     });
   });
 });

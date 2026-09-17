@@ -222,6 +222,11 @@ export default function PackagesPage() {
                 <div>
                   <label className="block text-sm font-medium mb-1">Image URL</label>
                   <input type="text" value={formData.image} onChange={e => setFormData({...formData, image: e.target.value})} className="w-full border p-2 rounded-lg" placeholder="https://..." />
+                  {formData.image && (
+                    <div className="mt-2 relative h-32 rounded-lg overflow-hidden border border-gray-200">
+                      <img src={formData.image} alt="Preview" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/600x400?text=Invalid+Image+URL' }} />
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Display Order</label>

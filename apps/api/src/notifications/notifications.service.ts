@@ -309,4 +309,11 @@ export class NotificationsService {
       });
     }
   }
+
+  async getLogs(limit = 100) {
+    return this.prisma.notificationLog.findMany({
+      orderBy: { id: 'desc' },
+      take: limit,
+    });
+  }
 }

@@ -1,8 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UpiPaymentQrService } from './upi-payment-qr.service';
 import { BadRequestException } from '@nestjs/common';
+import * as QRCode from 'qrcode';
 
 jest.setTimeout(30000);
+
+jest.mock('qrcode', () => ({
+  toBuffer: jest.fn().mockResolvedValue(Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]),
+    Buffer.alloc(100)
+  ])),
+  toDataURL: jest.fn().mockResolvedValue('data:image/png;base64,' + 'mockbase64dataURL'.repeat(20)),
+}));
 
 describe('UpiPaymentQrService (Phase 13 UPI & QR Automation)', () => {
   let service: UpiPaymentQrService;

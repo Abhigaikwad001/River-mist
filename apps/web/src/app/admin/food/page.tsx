@@ -272,6 +272,11 @@ export default function AdminFoodPage() {
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1">Image URL</label>
                   <input type="text" value={formData.image} onChange={e => setFormData({...formData, image: e.target.value})} className="w-full border border-gray-300 p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-[#1E3F20]" placeholder="https://..." />
+                  {formData.image && (
+                    <div className="mt-2 relative h-32 rounded-lg overflow-hidden border border-gray-200">
+                      <img src={formData.image} alt="Preview" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/600x400?text=Invalid+Image+URL' }} />
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1">Display Order</label>

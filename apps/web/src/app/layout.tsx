@@ -94,7 +94,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div>
               <h4 className="classic-subheading mb-6">Contact Us</h4>
               <p className="text-sm opacity-80 leading-relaxed">
-                River Road, Agro Valley<br />
+                Bhimashet,Near Bhimariver<br />
                 Maharastra, India<br />
                 <br />
                 📞 +91 9322759343

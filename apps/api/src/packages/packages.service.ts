@@ -115,6 +115,20 @@ export class PackagesService {
       }
     }
 
+    if (data.active === false && oldPkg.active === true) {
+      const activeBookings = await this.prisma.booking.count({
+        where: {
+          packageId: id,
+          status: { in: ['CONFIRMED', 'PAYMENT_PENDING'] },
+          date: { gte: new Date() }
+        }
+      });
+      
+      if (activeBookings > 0) {
+        throw new BadRequestException(`Cannot disable package. There are ${activeBookings} upcoming active bookings for this package.`);
+      }
+    }
+
     if (data.minGuests !== undefined) data.minGuests = Number(data.minGuests);
     if (data.maxGuests !== undefined) data.maxGuests = data.maxGuests ? Number(data.maxGuests) : null;
     if (data.displayOrder !== undefined) data.displayOrder = Number(data.displayOrder);

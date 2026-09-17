@@ -4,6 +4,7 @@ if (!process.env.DATABASE_URL) {
 }
 import { CapacityService, ACTIVE_BOOKING_STATUSES } from './capacity.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { ConflictException } from '@nestjs/common';
 import { BookingStatus } from '@prisma/client';
 
@@ -15,7 +16,16 @@ describe('Capacity Engine Integration (Phase 3)', () => {
 
   beforeAll(async () => {
     testingModule = await Test.createTestingModule({
-      providers: [CapacityService, PrismaService],
+      providers: [
+        CapacityService,
+        PrismaService,
+        {
+          provide: AuditService,
+          useValue: {
+            logAction: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+      ],
     }).compile();
 
     capacityService = testingModule.get<CapacityService>(CapacityService);
