@@ -320,10 +320,27 @@ export class CapacityService {
       throw new ConflictException(`Sorry, River Mist is closed on ${dateStr}${reasonMsg}.`);
     }
 
+    // Deduplicate and aggregate requirements by resourceId
+    const aggregatedReqMap = new Map<number, number>();
     for (const req of resourceRequirements) {
-      // Lock the resource row to prevent concurrent modifications
+      aggregatedReqMap.set(
+        req.resourceId,
+        (aggregatedReqMap.get(req.resourceId) || 0) + req.quantity
+      );
+    }
+
+    // Sort requirements by resourceId ascending to eliminate deadlock risk across concurrent transactions
+    const sortedRequirements = Array.from(aggregatedReqMap.entries())
+      .map(([resourceId, quantity]) => ({ resourceId, quantity }))
+      .sort((a, b) => a.resourceId - b.resourceId);
+
+    const dateAsInt = parseInt(dateStr.replace(/-/g, ''), 10);
+
+    for (const req of sortedRequirements) {
+      // Date-scoped transaction advisory lock: locks the specific (resourceId, dateAsInt) pair
+      // for the duration of this transaction, removing the cross-date global table bottleneck.
       const resource = (await tx.$queryRaw`
-        SELECT * FROM "Resource" WHERE id = ${req.resourceId} FOR UPDATE
+        SELECT *, pg_advisory_xact_lock(id, ${dateAsInt})::text AS locked FROM "Resource" WHERE id = ${req.resourceId}
       `) as any[];
 
       if (!resource || resource.length === 0 || !resource[0].active) {
