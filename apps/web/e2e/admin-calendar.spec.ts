@@ -193,9 +193,11 @@ test.describe('Phase 18E: Admin Calendar & Capacity Control Center', () => {
     await expect(page.getByRole('heading', { name: 'Calendar & Capacity Control Center' })).toBeVisible();
 
     // Verify blackout date badge is rendered
-    await expect(page.locator('text=Monsoon Facility Maintenance').first()).toBeVisible();
+    await page.locator('[data-date="2026-09-15"]').scrollIntoViewIfNeeded();
+    await expect(page.locator('[data-date="2026-09-15"]').locator('text=Closed')).toBeVisible();
 
     // Verify custom override badge is rendered
+    await page.locator('[data-date="2026-09-20"]').scrollIntoViewIfNeeded();
     await expect(page.locator('text=700').first()).toBeVisible();
   });
 

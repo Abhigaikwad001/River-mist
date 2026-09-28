@@ -309,18 +309,19 @@ export default function CalendarPage() {
       {/* Main Grid + Operational Panel */}
       <div className="flex flex-col lg:flex-row gap-6 items-start">
         {/* Left: Monthly Calendar Grid */}
-        <div className="flex-1 w-full bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col min-h-[650px]">
-          {/* Day of Week Headers */}
-          <div className="grid grid-cols-7 border-b border-gray-100 bg-gray-50/80 shrink-0">
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-              <div key={d} className="py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">
-                {d}
-              </div>
-            ))}
-          </div>
+        <div className="flex-1 w-full bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto flex flex-col min-h-[650px]">
+          <div className="min-w-[650px] flex-1 flex flex-col">
+            {/* Day of Week Headers */}
+            <div className="grid grid-cols-7 border-b border-gray-100 bg-gray-50/80 shrink-0">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+                <div key={d} className="py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">
+                  {d}
+                </div>
+              ))}
+            </div>
 
-          {/* Days Grid */}
-          <div className="grid grid-cols-7 flex-1 auto-rows-[minmax(130px,1fr)] divide-x divide-y divide-gray-100">
+            {/* Days Grid */}
+            <div className="grid grid-cols-7 flex-1 auto-rows-[minmax(130px,1fr)] divide-x divide-y divide-gray-100">
             {daysInMonth.map((day, i) => {
               const dayStr = format(day, 'yyyy-MM-dd');
               const dayData = calendarData?.days?.[dayStr];
@@ -436,6 +437,7 @@ export default function CalendarPage() {
                 </div>
               );
             })}
+          </div>
           </div>
         </div>
 
