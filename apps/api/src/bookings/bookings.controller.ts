@@ -1,11 +1,11 @@
-import { Controller, Post, Get, Body, Request, UseGuards, Param, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Get, Body, Request, UseGuards, Param, ForbiddenException, BadRequestException, Query } from '@nestjs/common';
 import { BookingsService } from './bookings.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { Role, EventType } from '@prisma/client';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { CreateBookingDto } from './dto/create-booking.dto/create-booking.dto';
 
 @ApiTags('bookings')
@@ -47,11 +47,16 @@ export class BookingsController {
   // --- ADMIN ROUTES ---
 
   @ApiOperation({ summary: 'Get all bookings (Admin)' })
+  @ApiQuery({ name: 'startDate', required: false, example: '2026-09-01' })
+  @ApiQuery({ name: 'endDate', required: false, example: '2026-09-30' })
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.BOOKING_MANAGER)
   @Get()
-  getAllBookings() {
-    return this.bookingsService.getAllBookings();
+  getAllBookings(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.bookingsService.getAllBookings(startDate, endDate);
   }
 
   @ApiOperation({ summary: 'Update booking status (Admin)' })

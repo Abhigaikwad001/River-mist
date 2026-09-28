@@ -2,7 +2,7 @@ import { Injectable, ConflictException, NotFoundException, BadRequestException }
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { BookingStatus, Prisma } from '@prisma/client';
-import { normalizeToIstDateRange } from '../common/utils/date.util';
+import { normalizeToIstDateRange, ONE_DAY_MS } from '../common/utils/date.util';
 import { SetDailyCapacityOverrideDto } from './dto/set-daily-capacity-override.dto';
 
 export const ACTIVE_BOOKING_STATUSES = [
@@ -288,6 +288,258 @@ export class CapacityService {
           }
         : null,
       resources: report,
+    };
+  }
+
+  /**
+   * Get calendar and capacity control center report for a date range in IST.
+   * Aggregates active bookings, scheduled events, quotes, capacity, and overrides.
+   * @param startDate YYYY-MM-DD
+   * @param endDate YYYY-MM-DD
+   */
+  async getCalendarReport(startDate: string, endDate: string) {
+    if (!startDate || !endDate) {
+      throw new BadRequestException('startDate and endDate are required (YYYY-MM-DD)');
+    }
+
+    const startRange = normalizeToIstDateRange(startDate);
+    const endRange = normalizeToIstDateRange(endDate);
+
+    if (startRange.startOfDay > endRange.endOfDay) {
+      throw new BadRequestException('startDate cannot be after endDate');
+    }
+
+    const diffDays = Math.round(
+      (endRange.endOfDay.getTime() - startRange.startOfDay.getTime()) / ONE_DAY_MS
+    );
+    if (diffDays > 62) {
+      throw new BadRequestException('Date range cannot exceed 62 days');
+    }
+
+    // 1. Fetch overrides in range
+    const overrides = await this.prisma.dailyCapacityOverride.findMany({
+      where: {
+        date: {
+          gte: startRange.startOfDay,
+          lt: endRange.endOfDay,
+        },
+      },
+      orderBy: { date: 'asc' },
+    });
+
+    const overrideMap = new Map<string, any>();
+    for (const ov of overrides) {
+      const { dateStr } = normalizeToIstDateRange(ov.date);
+      overrideMap.set(dateStr, ov);
+    }
+
+    // 2. Fetch active bookings in range
+    const bookings = await this.prisma.booking.findMany({
+      where: {
+        date: {
+          gte: startRange.startOfDay,
+          lt: endRange.endOfDay,
+        },
+        status: {
+          in: ACTIVE_BOOKING_STATUSES,
+        },
+      },
+      include: {
+        user: { select: { id: true, name: true, email: true, phone: true } },
+        package: { select: { id: true, name: true, slug: true } },
+        activities: { include: { activity: true } },
+        payments: { select: { id: true, amount: true, status: true, method: true } },
+      },
+      orderBy: { date: 'asc' },
+    });
+
+    const bookingsByDate = new Map<string, any[]>();
+    for (const b of bookings) {
+      const { dateStr } = normalizeToIstDateRange(b.date);
+      if (!bookingsByDate.has(dateStr)) {
+        bookingsByDate.set(dateStr, []);
+      }
+      bookingsByDate.get(dateStr)!.push(b);
+    }
+
+    // 3. Fetch scheduled events in range
+    const events = await this.prisma.event.findMany({
+      where: {
+        eventDate: {
+          gte: startRange.startOfDay,
+          lt: endRange.endOfDay,
+        },
+        active: true,
+      },
+      orderBy: { eventDate: 'asc' },
+    });
+
+    const eventsByDate = new Map<string, any[]>();
+    for (const ev of events) {
+      const { dateStr } = normalizeToIstDateRange(ev.eventDate);
+      if (!eventsByDate.has(dateStr)) {
+        eventsByDate.set(dateStr, []);
+      }
+      eventsByDate.get(dateStr)!.push(ev);
+    }
+
+    // 4. Fetch quotes in range
+    const quotes = await this.prisma.weddingQuote.findMany({
+      where: {
+        eventDate: {
+          gte: startRange.startOfDay,
+          lt: endRange.endOfDay,
+        },
+      },
+      include: {
+        user: { select: { id: true, name: true, email: true, phone: true } },
+        items: true,
+        booking: { select: { id: true, bookingNumber: true, status: true } },
+      },
+      orderBy: { eventDate: 'asc' },
+    });
+
+    const quotesByDate = new Map<string, any[]>();
+    for (const q of quotes) {
+      const { dateStr } = normalizeToIstDateRange(q.eventDate);
+      if (!quotesByDate.has(dateStr)) {
+        quotesByDate.set(dateStr, []);
+      }
+      quotesByDate.get(dateStr)!.push(q);
+    }
+
+    // 5. Default General Tourism Capacity
+    const generalResource = await this.prisma.resource.findFirst({
+      where: { name: 'General Day Tourism', active: true },
+    });
+    const defaultCapacity = generalResource?.capacity ?? 500;
+
+    // 6. Aggregate day by day across the requested IST interval
+    const daysMap: Record<string, any> = {};
+    const daysList: any[] = [];
+
+    let currentRange = startRange;
+    while (currentRange.startOfDay < endRange.endOfDay) {
+      const dStr = currentRange.dateStr;
+      const override = overrideMap.get(dStr);
+      const isClosed = override?.isClosed ?? false;
+      const closureReason = isClosed
+        ? override?.reason || 'Resort closed for a private event or maintenance'
+        : null;
+
+      let effectiveCapacity = defaultCapacity;
+      let hasOverride = false;
+
+      if (!isClosed && override?.customCapacity !== null && override?.customCapacity !== undefined) {
+        effectiveCapacity = override.customCapacity;
+        hasOverride = true;
+      }
+
+      const dayBookings = bookingsByDate.get(dStr) || [];
+      const dayEvents = eventsByDate.get(dStr) || [];
+      const dayQuotes = quotesByDate.get(dStr) || [];
+
+      const bookedCapacity = dayBookings.reduce(
+        (sum, b) => sum + (b.headCountAdult || 0) + (b.headCountChild || 0),
+        0
+      );
+
+      const remainingCapacity = isClosed ? 0 : Math.max(0, effectiveCapacity - bookedCapacity);
+      const isSoldOut = isClosed || remainingCapacity <= 0;
+
+      const daySummary = {
+        date: dStr,
+        isClosed,
+        closureReason,
+        hasOverride,
+        override: override
+          ? {
+              id: override.id,
+              customCapacity: override.customCapacity,
+              isClosed: override.isClosed,
+              reason: override.reason,
+            }
+          : null,
+        totalCapacity: effectiveCapacity,
+        defaultCapacity,
+        bookedCapacity,
+        remainingCapacity,
+        isSoldOut,
+        totalBookings: dayBookings.length,
+        totalGuests: bookedCapacity,
+        totalEvents: dayEvents.length,
+        totalQuotes: dayQuotes.length,
+        bookings: dayBookings.map((b) => ({
+          id: b.id,
+          bookingNumber: b.bookingNumber,
+          date: dStr,
+          type: b.type,
+          status: b.status,
+          headCountAdult: b.headCountAdult,
+          headCountChild: b.headCountChild,
+          totalGuests: (b.headCountAdult || 0) + (b.headCountChild || 0),
+          subtotalAmount: b.subtotalAmount,
+          totalAmount: b.totalAmount,
+          advanceRequired: b.advanceRequired,
+          amountPaid: b.amountPaid,
+          balanceAmount: b.balanceAmount,
+          notes: b.notes,
+          user: b.user,
+          package: b.package,
+          activities: b.activities?.map((a: any) => ({
+            id: a.activityId,
+            name: a.activity?.name,
+            pricingType: a.activity?.pricingType,
+          })),
+          payments: b.payments,
+        })),
+        events: dayEvents.map((ev) => ({
+          id: ev.id,
+          title: ev.title,
+          description: ev.description,
+          eventDate: dStr,
+          startTime: ev.startTime,
+          endTime: ev.endTime,
+          location: ev.location,
+          capacity: ev.capacity,
+          price: ev.price,
+          status: ev.status,
+        })),
+        quotes: dayQuotes.map((q) => ({
+          id: q.id,
+          quoteNumber: q.quoteNumber,
+          eventDate: dStr,
+          eventType: q.eventType,
+          status: q.status,
+          guestCount: q.guestCount,
+          total: q.total,
+          advanceRequired: q.advanceRequired,
+          venueRequirements: q.venueRequirements,
+          notes: q.notes,
+          user: q.user,
+          bookingId: q.bookingId,
+          bookingNumber: q.booking?.bookingNumber,
+        })),
+      };
+
+      daysMap[dStr] = daySummary;
+      daysList.push(daySummary);
+
+      // Advance to next day in IST
+      const nextStartMs = currentRange.startOfDay.getTime() + ONE_DAY_MS;
+      currentRange = normalizeToIstDateRange(new Date(nextStartMs));
+    }
+
+    return {
+      startDate: startRange.dateStr,
+      endDate: endRange.dateStr,
+      totalDays: daysList.length,
+      totalBookings: bookings.length,
+      totalGuests: daysList.reduce((sum, d) => sum + d.totalGuests, 0),
+      totalEvents: events.length,
+      totalQuotes: quotes.length,
+      days: daysMap,
+      daysList,
     };
   }
 

@@ -449,8 +449,28 @@ export class BookingsService {
     });
   }
 
-  async getAllBookings() {
+  async getAllBookings(startDate?: string, endDate?: string) {
+    let whereClause: any = {};
+    if (startDate && endDate) {
+      const startRange = normalizeToIstDateRange(startDate);
+      const endRange = normalizeToIstDateRange(endDate);
+      if (startRange.startOfDay > endRange.endOfDay) {
+        throw new BadRequestException('startDate cannot be after endDate');
+      }
+      whereClause.date = {
+        gte: startRange.startOfDay,
+        lt: endRange.endOfDay,
+      };
+    } else if (startDate) {
+      const { startOfDay, endOfDay } = normalizeToIstDateRange(startDate);
+      whereClause.date = {
+        gte: startOfDay,
+        lt: endOfDay,
+      };
+    }
+
     return this.prisma.booking.findMany({
+      where: whereClause,
       include: {
         user: { select: { name: true, email: true, role: true } },
         package: true,

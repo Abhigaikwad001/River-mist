@@ -36,6 +36,20 @@ export class CapacityController {
     return this.capacityService.getAvailabilityReport(date);
   }
 
+  @ApiOperation({ summary: 'Get calendar and capacity control center report (Admin)' })
+  @ApiQuery({ name: 'startDate', required: true, example: '2026-09-01' })
+  @ApiQuery({ name: 'endDate', required: true, example: '2026-09-30' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.BOOKING_MANAGER, Role.EVENT_MANAGER)
+  @Get('calendar')
+  getCalendar(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string
+  ) {
+    return this.capacityService.getCalendarReport(startDate, endDate);
+  }
+
   @ApiOperation({ summary: 'List daily capacity overrides (Admin)' })
   @ApiQuery({ name: 'startDate', required: false, example: '2026-09-01' })
   @ApiQuery({ name: 'endDate', required: false, example: '2026-09-30' })

@@ -48,15 +48,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <span>Dashboard</span>
             </Link>
 
+            {(userRole === 'SUPER_ADMIN' || userRole === 'BOOKING_MANAGER' || userRole === 'EVENT_MANAGER') && (
+              <Link href="/admin/calendar" className="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-[#2A522C] transition-colors text-sm">
+                <CalendarDays size={18} />
+                <span>Calendar</span>
+              </Link>
+            )}
+
             {(userRole === 'SUPER_ADMIN' || userRole === 'BOOKING_MANAGER') && (
               <>
                 <Link href="/admin/bookings" className="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-[#2A522C] transition-colors text-sm">
                   <FileText size={18} />
                   <span>Bookings</span>
-                </Link>
-                <Link href="/admin/calendar" className="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-[#2A522C] transition-colors text-sm">
-                  <CalendarDays size={18} />
-                  <span>Calendar</span>
                 </Link>
                 <Link href="/admin/capacity" className="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-[#2A522C] transition-colors text-sm">
                   <MapPin size={18} />

@@ -1,16 +1,22 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
+import { CapacityService } from '../capacity/capacity.service';
 import { Role } from '@prisma/client';
 
 describe('AdminController', () => {
   let controller: AdminController;
   let service: any;
+  let capacityService: any;
 
   const mockAdminService = {
     getDashboardSummary: jest.fn(),
     getDashboardStats: jest.fn(),
     getRevenue: jest.fn(),
+  };
+
+  const mockCapacityService = {
+    getCalendarReport: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -20,11 +26,13 @@ describe('AdminController', () => {
       controllers: [AdminController],
       providers: [
         { provide: AdminService, useValue: mockAdminService },
+        { provide: CapacityService, useValue: mockCapacityService },
       ],
     }).compile();
 
     controller = module.get<AdminController>(AdminController);
     service = module.get(AdminService);
+    capacityService = module.get(CapacityService);
   });
 
   it('should be defined', () => {
@@ -66,6 +74,21 @@ describe('AdminController', () => {
       const res = await controller.getRevenue();
       expect(service.getRevenue).toHaveBeenCalled();
       expect(res).toEqual(mockRev);
+    });
+  });
+
+  describe('getCalendar', () => {
+    it('should delegate to capacityService.getCalendarReport', async () => {
+      const mockReport = {
+        startDate: '2026-09-01',
+        endDate: '2026-09-30',
+        report: [],
+      };
+      capacityService.getCalendarReport.mockResolvedValueOnce(mockReport);
+
+      const res = await controller.getCalendar('2026-09-01', '2026-09-30');
+      expect(capacityService.getCalendarReport).toHaveBeenCalledWith('2026-09-01', '2026-09-30');
+      expect(res).toEqual(mockReport);
     });
   });
 });
