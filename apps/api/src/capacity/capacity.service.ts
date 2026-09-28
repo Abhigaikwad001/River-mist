@@ -408,9 +408,16 @@ export class CapacityService {
       quotesByDate.get(dateStr)!.push(q);
     }
 
-    // 5. Default General Tourism Capacity
+    // 5. Default General Tourism Capacity (Prioritize type CAPACITY or fallback to name General Day Tourism)
     const generalResource = await this.prisma.resource.findFirst({
-      where: { name: 'General Day Tourism', active: true },
+      where: {
+        active: true,
+        OR: [
+          { type: 'CAPACITY' },
+          { name: { equals: 'General Day Tourism', mode: 'insensitive' } },
+        ],
+      },
+      orderBy: { id: 'asc' },
     });
     const defaultCapacity = generalResource?.capacity ?? 500;
 

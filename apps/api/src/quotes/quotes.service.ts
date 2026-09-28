@@ -210,22 +210,37 @@ export class QuotesService {
     });
 
     let finalResources = [...requiredResources];
-    if (!finalResources.some(r => r.name === venueName)) {
+    if (!finalResources.some(r => r.name === venueName || r.type === 'VENUE')) {
       const fallbackVenue = await this.prisma.resource.findFirst({
-        where: { name: { in: ['Wedding Lawn', 'General Day Tourism'] }, active: true }
+        where: {
+          active: true,
+          OR: [
+            { type: 'VENUE' },
+            { type: 'CAPACITY' },
+            { name: { in: ['Wedding Lawn', 'General Day Tourism'] } },
+          ],
+        },
       });
       if (fallbackVenue) {
         finalResources.push(fallbackVenue);
       }
     }
 
-    if (finalResources.length === 0 || !finalResources.some(r => ['Wedding Lawn', 'Wedding Hall', 'General Day Tourism'].includes(r.name))) {
+    if (
+      finalResources.length === 0 ||
+      !finalResources.some(
+        r =>
+          r.type === 'VENUE' ||
+          r.type === 'CAPACITY' ||
+          ['Wedding Lawn', 'Wedding Hall', 'General Day Tourism'].includes(r.name),
+      )
+    ) {
       throw new BadRequestException(`No active venue resource configured for ${quote.eventType}`);
     }
 
     const resourceRequirements = finalResources.map(res => {
       let quantity = totalGuests;
-      if (res.name === parkingResourceName) {
+      if (res.name === parkingResourceName || res.type === 'PARKING' || (res.type === 'FACILITY' && res.name.toLowerCase().includes('parking'))) {
         quantity = estimatedVehicles;
       }
       return { resourceId: res.id, quantity };
