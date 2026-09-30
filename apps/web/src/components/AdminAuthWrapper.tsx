@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 
-const ADMIN_ROLES = [
+export const ADMIN_ROLES = [
   'SUPER_ADMIN',
   'BOOKING_MANAGER',
   'EVENT_MANAGER',
